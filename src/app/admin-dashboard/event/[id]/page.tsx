@@ -111,20 +111,60 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       skipEmptyLines: true,
       complete: async (results) => {
         const rows = results.data as any[]
-        const formattedRows = rows.map(row => ({
-          event_id: eventId,
-          full_name: row.Name || row.name || row.Full_Name,
-          email: row.Email || row.email,
-          title: row.Title || row.title || '-',
-          phone: row.Phone || row.phone || null,
-          status: 'pending'
-        }))
-
-        const { error } = await supabase.from('registrations').insert(formattedRows)
-        if (error) alert('Import Error: ' + error.message)
-        else {
-            alert(`Successfully imported ${formattedRows.length} users!`)
+        const errors: string[] = []
+        
+        // Validate required fields and process data
+        const formattedRows = rows.map((row, index) => {
+          // Check mandatory fields
+          const fullName = row.full_name || row.Full_Name || row.name || row.Name || ''
+          const title = row.title || row.Title || ''
+          
+          if (!fullName.trim()) {
+            errors.push(`Row ${index + 1}: full_name is required`)
+            return null
+          }
+          
+          if (!title.trim()) {
+            errors.push(`Row ${index + 1}: title is required`)
+            return null
+          }
+          
+          // Validate email format if provided
+          const email = row.email || row.Email || ''
+          if (email && !/\S+@\S+\.\S+/.test(email)) {
+            errors.push(`Row ${index + 1}: Invalid email format`)
+            return null
+          }
+          
+          return {
+            event_id: eventId,
+            full_name: fullName.trim(),
+            email: email.trim() || null,
+            title: title.trim(),
+            phone: row.phone || row.Phone || null,
+            dob: row.dob || row.DOB || null,
+            gender: row.gender || row.Gender || null,
+            status: 'pending'
+          }
+        }).filter(Boolean) // Remove rows with errors
+        
+        // Show errors if any
+        if (errors.length > 0) {
+          alert(`Import completed with ${errors.length} error(s):\n\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n\n...and more errors' : ''}`)
+        }
+        
+        // Show success if any valid rows were imported
+        if (formattedRows.length > 0) {
+          alert(`Successfully imported ${formattedRows.length} users!${errors.length > 0 ? ' (Some rows were skipped due to errors)' : ''}`)
+          
+          const { error } = await supabase.from('registrations').insert(formattedRows)
+          if (error) {
+            alert('Import Error: ' + error.message)
+          } else {
             fetchRegistrations()
+          }
+        } else if (errors.length > 0) {
+          alert('No valid data to import. Please check your CSV file format and required fields.')
         }
       }
     })
@@ -207,6 +247,55 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const handleDownloadTicket = async (user: any) => {
     const doc = await createPdfDoc(user)
     doc.save(`${user.full_name}_ticket.pdf`)
+  }
+
+  const handleExportCsv = () => {
+    if (registrations.length === 0) {
+      alert('No data to export')
+      return
+    }
+
+    // Prepare CSV headers
+    const headers = [
+      'ID',
+      'Full Name',
+      'Email',
+      'Title',
+      'Phone',
+      'DOB',
+      'Gender',
+      'Status',
+      'Created At'
+    ]
+
+    // Convert registrations to CSV rows
+    const csvContent = [
+      headers.join(','), // Header row
+      ...registrations.map(reg => [
+        reg.id,
+        `"${reg.full_name || ''}"`, // Wrap in quotes to handle commas
+        `"${reg.email || ''}"`,
+        `"${reg.title || ''}"`,
+        `"${reg.phone || ''}"`,
+        `"${reg.dob || ''}"`,
+        `"${reg.gender || ''}"`,
+        reg.status,
+        `"${new Date(reg.created_at).toLocaleString()}"`
+      ].join(','))
+    ].join('\n')
+
+    // Create and download the CSV file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${event.name.replace(/[^a-z0-9]/gi, '_')}_registrations.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
 // -------------------------
@@ -293,6 +382,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                             <span className="text-sm font-bold">Import CSV</span>
                             <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                         </label>
+                        <button 
+                            onClick={handleExportCsv}
+                            className="flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#444] px-4 py-2 rounded-lg cursor-pointer transition"
+                        >
+                            <Download size={16} />
+                            <span className="text-sm font-bold">Export CSV</span>
+                        </button>
                     </div>
                 </div>
 
