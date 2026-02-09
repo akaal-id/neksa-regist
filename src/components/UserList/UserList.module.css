@@ -1,0 +1,61 @@
+.container {
+    width: 100%;
+    max-width: 450px;
+  }
+  
+  .title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #888;
+  }
+  
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .empty {
+    color: #555;
+    font-style: italic;
+  }
+  
+  .card {
+    padding: 1rem;
+    background-color: rgba(30, 30, 30, 0.5);
+    border: 1px solid #333;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .name {
+    font-weight: 700;
+    color: #eee;
+    display: block;
+  }
+  
+  .email {
+    font-size: 0.75rem;
+    color: #666;
+  }
+  
+  .badge {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .pending {
+    background-color: rgba(234, 179, 8, 0.2);
+    color: #eab308;
+  }
+  
+  .approved {
+    background-color: rgba(22, 163, 74, 0.2);
+    color: #16a34a;
+  }
