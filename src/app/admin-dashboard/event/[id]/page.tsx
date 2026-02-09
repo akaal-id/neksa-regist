@@ -1,12 +1,12 @@
 'use client'
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState, use, useMemo } from 'react'
 import { supabase } from '../../../../lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, QrCode, List, UserCheck, Upload, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, QrCode, List, UserCheck, Upload, Download, Eye, Search, ArrowUpDown } from 'lucide-react'
 import { Scanner } from '@yudiel/react-qr-scanner'
-import Papa from 'papaparse' // CSV Parser
-import { jsPDF } from 'jspdf' // PDF Generator
-import QRCode from 'qrcode' // QR Generator
+import Papa from 'papaparse'
+import { jsPDF } from 'jspdf'
+import QRCode from 'qrcode'
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
@@ -17,11 +17,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [activeTab, setActiveTab] = useState<'rsvp' | 'scan'>('rsvp')
   const [registrations, setRegistrations] = useState<any[]>([])
   
+  // NEW: Search, Sort & Pagination State
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+
   // Scanner State
-  const [lastScan, setLastScan] = useState<any>(null) // Changed to object to store user data
+  const [lastScan, setLastScan] = useState<any>(null)
   const [isScanning, setIsScanning] = useState(true)
 
-  // 1. Fetch Logic (Same as before)
+  // 1. Fetch Data
   useEffect(() => {
     async function loadData() {
       const { data: eventData } = await supabase.from('events').select('*').eq('id', eventId).single()
@@ -39,8 +45,63 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   // -------------------------
-  // 2. CSV UPLOAD LOGIC
+  // 2. SEARCH, SORT & PAGINATION LOGIC
   // -------------------------
+  
+  // A. Filter & Sort
+  const filteredRegistrations = useMemo(() => {
+    let data = [...registrations]
+
+    // Filter
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase()
+      data = data.filter(reg => 
+        (reg.full_name?.toLowerCase() || '').includes(lowerTerm) ||
+        (reg.email?.toLowerCase() || '').includes(lowerTerm) ||
+        (reg.title?.toLowerCase() || '').includes(lowerTerm)
+      )
+    }
+
+    // Sort
+    if (sortConfig) {
+      data.sort((a, b) => {
+        const aValue = (a[sortConfig.key] || '').toString().toLowerCase()
+        const bValue = (b[sortConfig.key] || '').toString().toLowerCase()
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
+        return 0
+      })
+    }
+
+    return data
+  }, [registrations, searchTerm, sortConfig])
+
+  // B. Pagination Slicing
+  const totalPages = Math.ceil(filteredRegistrations.length / itemsPerPage)
+  const paginatedRegistrations = filteredRegistrations.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
+  // Reset to page 1 when searching
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
+
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc'
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setSortConfig({ key, direction })
+  }
+
+
+  // -------------------------
+  // 3. ACTIONS (CSV, PDF, Status)
+  // -------------------------
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -50,8 +111,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       skipEmptyLines: true,
       complete: async (results) => {
         const rows = results.data as any[]
-        // Map CSV columns to DB columns (Adjust keys based on your CSV header)
-        // Expected CSV Headers: Name, Email, Title, Phone
         const formattedRows = rows.map(row => ({
           event_id: eventId,
           full_name: row.Name || row.name || row.Full_Name,
@@ -61,7 +120,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           status: 'pending'
         }))
 
-        // Bulk Insert
         const { error } = await supabase.from('registrations').insert(formattedRows)
         if (error) alert('Import Error: ' + error.message)
         else {
@@ -72,39 +130,112 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     })
   }
 
-  // -------------------------
-  // 3. PDF DOWNLOAD LOGIC (Admin Side)
-  // -------------------------
-  const downloadTicket = async (user: any) => {
-    // Re-use the exact same logic from User Side (Copy-Paste generatePDF content here)
-    // For brevity, I'll put a simplified version, but you should copy the "Professional" one
+  const handleStatusChange = async (userId: string, newStatus: string) => {
+    setRegistrations(prev => prev.map(reg => reg.id === userId ? { ...reg, status: newStatus } : reg))
+    const { error } = await supabase.from('registrations').update({ status: newStatus }).eq('id', userId)
+    if (error) {
+        alert('Failed to update status')
+        fetchRegistrations()
+    }
+  }
+
+  // PDF Generation (Reused)
+  const createPdfDoc = async (user: any) => {
     const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
-    const qrDataUrl = await QRCode.toDataURL(user.id.toString(), { margin: 2, width: 500 })
-    doc.addImage(qrDataUrl, 'PNG', 20, 20, 50, 50)
-    doc.setFontSize(20)
-    doc.text(user.full_name, 80, 40)
-    doc.text(event.name, 80, 60)
+    const width = doc.internal.pageSize.getWidth()
+    const height = doc.internal.pageSize.getHeight()
+    const leftWidth = width * 0.35
+    
+    doc.setFillColor(15, 15, 15)
+    doc.rect(0, 0, leftWidth, height, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text('NEKSA PASS', 20, 20)
+    
+    try {
+      const qrDataUrl = await QRCode.toDataURL(user.id.toString(), { margin: 2, width: 500 })
+      doc.addImage(qrDataUrl, 'PNG', (leftWidth - 60) / 2, 60, 60, 60)
+      doc.setFont('courier', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(150, 150, 150)
+      doc.text(`ID: ${user.id}`.toUpperCase(), (leftWidth - doc.getTextWidth(`ID: ${user.id}`.toUpperCase())) / 2, 130)
+    } catch (err) {}
+
+    const rightMargin = leftWidth + 20
+    doc.setTextColor(100, 100, 100)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('OFFICIAL EVENT TICKET', rightMargin, 20)
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(28)
+    doc.text(event.name.substring(0, 25), rightMargin, 35)
+    doc.setDrawColor(200, 200, 200)
+    doc.line(rightMargin, 45, width - 20, 45)
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.text('ATTENDEE', rightMargin, 60)
+    doc.setFontSize(22)
+    doc.setTextColor(0, 0, 0)
+    doc.text(user.full_name, rightMargin, 72)
+    if (user.title && user.title !== '-') {
+        doc.setFontSize(14)
+        doc.setTextColor(80, 80, 80)
+        doc.text(user.title.toUpperCase(), rightMargin, 80)
+    }
+    const gridY = 110
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.text('DATE', rightMargin, gridY)
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
+    doc.text(new Date(event.date).toLocaleDateString(), rightMargin, gridY + 10)
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.text('LOCATION', rightMargin + 80, gridY)
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
+    doc.text(doc.splitTextToSize(event.address, 90), rightMargin + 80, gridY + 10)
+    return doc
+  }
+
+  const handleViewTicket = async (user: any) => {
+    const doc = await createPdfDoc(user)
+    window.open(doc.output('bloburl'), '_blank')
+  }
+
+  const handleDownloadTicket = async (user: any) => {
+    const doc = await createPdfDoc(user)
     doc.save(`${user.full_name}_ticket.pdf`)
   }
 
-  // -------------------------
-  // 4. SCANNER LOGIC (Updated)
+// -------------------------
+  // 4. SCANNER LOGIC
   // -------------------------
   const handleScan = async (result: any) => {
     if (result && result[0]?.rawValue && isScanning) {
         const ticketId = result[0].rawValue
-        setIsScanning(false) // Pause
+        setIsScanning(false) // Pause scanner
 
-        // Update DB
-        const { error } = await supabase.from('registrations').update({ status: 'attended' }).eq('id', ticketId).eq('event_id', eventId)
+        // 1. Update Database
+        const { error } = await supabase
+            .from('registrations')
+            .update({ status: 'attended' })
+            .eq('id', ticketId)
+            .eq('event_id', eventId)
 
         if (error) {
             alert('Error: ' + error.message)
-            setIsScanning(true)
+            setIsScanning(true) // Resume if failed
         } else {
-            // Fetch user for display
+            // 2. Fetch the specific user to show "Checked In" card
             const { data } = await supabase.from('registrations').select('*').eq('id', ticketId).single()
             setLastScan(data)
+            
+            // 3. CRITICAL FIX: Refresh the main list immediately!
+            fetchRegistrations() 
+
+            // 4. Play Sound
             new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3').play().catch(() => {})
         }
     }
@@ -119,7 +250,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen bg-black text-white font-sans">
-      {/* ... (Keep Header) ... */}
       <div className="border-b border-gray-800 bg-[#111] p-6 sticky top-0 z-10">
         <div className="flex justify-between items-center mb-4">
              <button onClick={() => router.push('/admin-dashboard')} className="flex items-center text-gray-400 hover:text-white">
@@ -139,49 +269,118 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
       <div className="p-6">
         {activeTab === 'rsvp' && (
-            <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
-                {/* CSV UPLOAD BAR */}
-                <div className="p-4 border-b border-[#333] flex justify-between items-center bg-[#161616]">
-                    <h3 className="font-bold text-gray-400">Total: {registrations.length}</h3>
-                    <label className="flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#444] px-4 py-2 rounded-lg cursor-pointer transition">
-                        <Upload size={16} />
-                        <span className="text-sm font-bold">Import CSV</span>
-                        <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-                    </label>
+            <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden flex flex-col">
+                
+                {/* TOOLBAR: SEARCH & CSV */}
+                <div className="p-4 border-b border-[#333] flex flex-col md:flex-row justify-between items-center gap-4 bg-[#161616]">
+                    
+                    {/* SEARCH BAR */}
+                    <div className="relative w-full md:w-96">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                        <input 
+                            type="text" 
+                            placeholder="Search name, email, or title..." 
+                            className="w-full bg-[#000] border border-[#333] rounded-lg py-2 pl-10 pr-4 text-white focus:border-green-500 outline-none"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <h3 className="font-bold text-gray-400 text-sm">Total: {registrations.length}</h3>
+                        <label className="flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#444] px-4 py-2 rounded-lg cursor-pointer transition">
+                            <Upload size={16} />
+                            <span className="text-sm font-bold">Import CSV</span>
+                            <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                        </label>
+                    </div>
                 </div>
 
-                <table className="w-full text-left">
-                    <thead className="bg-[#1a1a1a] text-gray-500 border-b border-[#333]">
-                        <tr>
-                            <th className="p-4">Name</th>
-                            <th className="p-4">Title</th>
-                            <th className="p-4">Status</th>
-                            <th className="p-4">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#222]">
-                        {registrations.map(reg => (
-                            <tr key={reg.id} className="hover:bg-[#161616]">
-                                <td className="p-4 font-bold">{reg.full_name} <br/><span className="text-xs text-gray-500 font-normal">{reg.email}</span></td>
-                                <td className="p-4 text-gray-400">{reg.title}</td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded text-xs uppercase font-bold ${reg.status === 'attended' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-500'}`}>
-                                        {reg.status}
-                                    </span>
-                                </td>
-                                <td className="p-4">
-                                    <button onClick={() => downloadTicket(reg)} className="text-gray-400 hover:text-green-400 transition" title="Download Ticket">
-                                        <Download size={18} />
-                                    </button>
-                                </td>
+                {/* TABLE */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-[#1a1a1a] text-gray-500 border-b border-[#333]">
+                            <tr>
+                                <th className="p-4 w-1/3 cursor-pointer hover:text-white" onClick={() => requestSort('full_name')}>
+                                    <div className="flex items-center gap-1">Name <ArrowUpDown size={14}/></div>
+                                </th>
+                                <th className="p-4 cursor-pointer hover:text-white" onClick={() => requestSort('title')}>
+                                    <div className="flex items-center gap-1">Title <ArrowUpDown size={14}/></div>
+                                </th>
+                                <th className="p-4 cursor-pointer hover:text-white" onClick={() => requestSort('status')}>
+                                    <div className="flex items-center gap-1">Status <ArrowUpDown size={14}/></div>
+                                </th>
+                                <th className="p-4 text-right">Ticket Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-[#222]">
+                            {paginatedRegistrations.length > 0 ? (
+                                paginatedRegistrations.map(reg => (
+                                    <tr key={reg.id} className="hover:bg-[#161616] transition">
+                                        <td className="p-4 font-bold">
+                                            {reg.full_name} 
+                                            <br/><span className="text-xs text-gray-500 font-normal">{reg.email}</span>
+                                        </td>
+                                        <td className="p-4 text-gray-400">{reg.title}</td>
+                                        <td className="p-4">
+                                            <select 
+                                                value={reg.status}
+                                                onChange={(e) => handleStatusChange(reg.id, e.target.value)}
+                                                className={`px-3 py-1.5 rounded text-xs uppercase font-bold border outline-none cursor-pointer transition ${
+                                                    reg.status === 'attended' 
+                                                    ? 'bg-green-900/50 text-green-300 border-green-800 hover:bg-green-900' 
+                                                    : 'bg-yellow-900/50 text-yellow-500 border-yellow-800 hover:bg-yellow-900'
+                                                }`}
+                                            >
+                                                <option value="pending" className="bg-black text-yellow-500">PENDING</option>
+                                                <option value="attended" className="bg-black text-green-500">ATTENDED</option>
+                                            </select>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleViewTicket(reg)} className="p-2 text-blue-400 hover:bg-blue-900/30 rounded transition" title="View Ticket"><Eye size={18} /></button>
+                                                <button onClick={() => handleDownloadTicket(reg)} className="p-2 text-green-400 hover:bg-green-900/30 rounded transition" title="Download PDF"><Download size={18} /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={4} className="p-8 text-center text-gray-500">
+                                        No registrations found matching "{searchTerm}"
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* PAGINATION CONTROLS */}
+                {totalPages > 1 && (
+                    <div className="p-4 border-t border-[#333] flex justify-between items-center bg-[#161616]">
+                        <button 
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="p-2 rounded hover:bg-[#333] disabled:opacity-30 disabled:hover:bg-transparent"
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+                        <span className="text-sm text-gray-400">
+                            Page <span className="text-white font-bold">{currentPage}</span> of {totalPages}
+                        </span>
+                        <button 
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="p-2 rounded hover:bg-[#333] disabled:opacity-30 disabled:hover:bg-transparent"
+                        >
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+                )}
             </div>
         )}
 
-        {/* UPDATED ADMIN SCANNER */}
+        {/* SCANNER TAB */}
         {activeTab === 'scan' && (
             <div className="max-w-md mx-auto">
                 {!lastScan ? (
