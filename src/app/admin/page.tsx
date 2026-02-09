@@ -9,7 +9,7 @@ export default function AdminLogin() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (id === 'akaal-id' && pass === 'Asia2025!') {
+    if (id === 'admin' && pass === 'Asia2025!') {
       // Set a cookie or local storage to prove we are logged in
       localStorage.setItem('isAdmin', 'true')
       // Redirect to the dashboard folder
