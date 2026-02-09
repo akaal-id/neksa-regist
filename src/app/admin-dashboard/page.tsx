@@ -2,13 +2,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, Calendar, MapPin, ChevronRight } from 'lucide-react'
+import { Plus, LogOut, Calendar, MapPin, ChevronRight, Link as LinkIcon } from 'lucide-react'
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [events, setEvents] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [newEvent, setNewEvent] = useState({ name: '', description: '', date: '', address: '' })
+  // ADDED: slug field to state
+  const [newEvent, setNewEvent] = useState({ name: '', description: '', date: '', address: '', slug: '' })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -34,14 +35,20 @@ export default function AdminDashboard() {
   const createEvent = async () => {
     if (!newEvent.name || !newEvent.date) return alert('Name and Date are required')
     
+    // Auto-generate slug if empty (optional safety)
+    const finalSlug = newEvent.slug || newEvent.name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '')
+
     setLoading(true)
-    const { error } = await supabase.from('events').insert([newEvent])
+    const { error } = await supabase.from('events').insert([{
+        ...newEvent,
+        slug: finalSlug
+    }])
     
     if (error) {
       alert(error.message)
     } else {
       setShowModal(false)
-      setNewEvent({ name: '', description: '', date: '', address: '' }) // Reset form
+      setNewEvent({ name: '', description: '', date: '', address: '', slug: '' }) // Reset form
       fetchEvents() // Refresh list
     }
     setLoading(false)
@@ -99,6 +106,12 @@ export default function AdminDashboard() {
                   <MapPin size={14} className="text-green-600" />
                   <span className="truncate">{event.address}</span>
                 </div>
+                {event.slug && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <LinkIcon size={14} className="text-blue-500" />
+                        <span className="truncate text-blue-400">/event/{event.slug}</span>
+                    </div>
+                )}
               </div>
             </div>
           ))
@@ -120,6 +133,20 @@ export default function AdminDashboard() {
                   value={newEvent.name}
                   onChange={e => setNewEvent({...newEvent, name: e.target.value})}
                 />
+              </div>
+
+              {/* NEW: SLUG INPUT */}
+              <div>
+                <label className="text-xs text-gray-500 uppercase font-bold">Custom URL Slug</label>
+                <div className="flex items-center mt-1">
+                    <span className="bg-[#333] p-3 rounded-l-lg border border-[#333] text-gray-400 border-r-0 text-sm">neksa.id/event/</span>
+                    <input 
+                    className="w-full bg-[#222] p-3 rounded-r-lg border border-gray-700 border-l-0 focus:border-green-500 outline-none text-white"
+                    placeholder="my-event-name"
+                    value={newEvent.slug}
+                    onChange={e => setNewEvent({...newEvent, slug: e.target.value})}
+                    />
+                </div>
               </div>
 
               <div>
