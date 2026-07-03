@@ -1,20 +1,28 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#F4F7F6",
+};
 
 export const metadata: Metadata = {
-  title: "Neksa Registration",
-  description: "Event registration system",
+  title: "HEI Talk",
+  description: "Whitelabel event registration and RSVP system",
 };
 
 export default function RootLayout({
@@ -25,8 +33,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${plusJakartaSans.variable} antialiased`}
       >
+        <div id="modal-root" />
         {children}
       </body>
     </html>

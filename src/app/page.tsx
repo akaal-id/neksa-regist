@@ -1,8 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
+'use client'
+import { useEffect, useState } from 'react'
+import { branding } from '../lib/branding'
 import { supabase } from '../lib/supabaseClient'
 import { Calendar, MapPin, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import styles from '../styles/shared.module.css'
 
 export default function Home() {
   const [events, setEvents] = useState<any[]>([])
@@ -18,65 +22,61 @@ export default function Home() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-black text-white font-sans flex flex-col">
-      {/* Hero Section */}
-      <section className="py-20 px-8 text-center border-b border-gray-900">
-        <h1 className="text-4xl md:text-6xl font-bold tracking-tighter bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent mb-4">
-          Neksa Events
-        </h1>
-        <p className="text-gray-400 max-w-xl mx-auto">
-          The seamless RSVP and Ticketing platform. Select an event below to get started.
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <p className={styles.heroEyebrow}>{branding.appName}</p>
+        <h1 className={styles.heroTitle}>Events &amp; Registration</h1>
+        <p className={styles.heroSubtitle}>
+          The seamless RSVP and ticketing platform. Select an event below to get started.
         </p>
       </section>
 
-      {/* Events Carousel / Grid */}
-      <section className="flex-1 p-8 overflow-y-auto">
+      <section className={styles.section}>
+        <p className={styles.sectionTitle}>Upcoming Events</p>
         {loading ? (
-            <div className="text-center text-gray-500">Loading events...</div>
+          <div className={styles.loading}>Loading events...</div>
         ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {events.map((event) => {
-                // FORCE SLUG GENERATION if missing from DB
-                // This ensures we never see "/event/1" even if DB is empty
+          <div className={styles.cardGrid}>
+            {events.length === 0 ? (
+              <div className={styles.empty}>
+                <p>No events available yet. Check back soon.</p>
+              </div>
+            ) : (
+              events.map((event) => {
                 const urlSlug = event.slug || event.name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '')
+                const isUpcoming = new Date(event.date) > new Date()
 
                 return (
-                  <Link 
-                    key={event.id} 
-                    href={`/event/${urlSlug}`} 
-                    className="group bg-[#111] border border-[#222] rounded-2xl p-6 hover:border-green-500/50 hover:bg-[#161616] transition flex flex-col h-full"
-                  >
-                      <div className="mb-4">
-                          <span className="text-xs font-bold text-green-500 uppercase tracking-widest border border-green-500/20 px-2 py-1 rounded">
-                              {new Date(event.date) > new Date() ? 'Upcoming' : 'Past Event'}
-                          </span>
+                  <Link key={event.id} href={`/event/${urlSlug}`} className={styles.eventCard}>
+                    <span className={`${styles.badge} ${isUpcoming ? styles.badgeGold : ''}`}>
+                      {isUpcoming ? 'Upcoming' : 'Past Event'}
+                    </span>
+                    <h2 className={styles.cardTitle}>{event.name}</h2>
+                    <p className={styles.cardDescription}>{event.description || 'Join us for an unforgettable experience.'}</p>
+                    <div className={styles.cardMeta}>
+                      <div className={styles.metaRow}>
+                        <Calendar size={15} />
+                        <span>{new Date(event.date).toLocaleDateString()}</span>
                       </div>
-                      <h2 className="text-2xl font-bold mb-2 group-hover:text-green-400 transition">{event.name}</h2>
-                      <p className="text-gray-400 text-sm mb-6 flex-1 line-clamp-3">{event.description}</p>
-                      
-                      <div className="space-y-3 pt-6 border-t border-[#222]">
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                              <Calendar size={16} />
-                              <span>{new Date(event.date).toLocaleDateString()}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                              <MapPin size={16} />
-                              <span className="truncate">{event.address}</span>
-                          </div>
+                      <div className={styles.metaRow}>
+                        <MapPin size={15} />
+                        <span>{event.address}</span>
                       </div>
-                      
-                      <div className="mt-6 flex items-center text-green-500 text-sm font-bold gap-1 group-hover:gap-2 transition-all">
-                          View Event <ArrowRight size={16} />
-                      </div>
+                    </div>
+                    <span className={styles.cardLink}>
+                      View Event <ArrowRight size={14} />
+                    </span>
                   </Link>
                 )
-            })}
-            </div>
+              })
+            )}
+          </div>
         )}
       </section>
 
-      <footer className="p-8 text-center text-xs text-gray-800 border-t border-gray-900">
-        © Copyright Neksa 2026
+      <footer className={styles.footer}>
+        <p className={styles.footerBrand}>{branding.appName.toUpperCase()}</p>
+        <p>© Copyright {branding.copyright} 2026</p>
       </footer>
     </main>
   )

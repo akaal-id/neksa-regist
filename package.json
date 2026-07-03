@@ -1,5 +1,5 @@
 {
-  "name": "neksa-registration",
+  "name": "hei-talk",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,7 +15,7 @@
     "@yudiel/react-qr-scanner": "^2.5.1",
     "jspdf": "^4.1.0",
     "lucide-react": "^0.563.0",
-    "next": "16.1.6",
+    "next": "^16.2.10",
     "papaparse": "^5.5.3",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",

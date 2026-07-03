@@ -1,26 +1,57 @@
 @import "tailwindcss";
 
+html {
+  scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F4F7F6;
+  --foreground: #1C2B2B;
+  --hei26-white: #F9F9F9;
+  --hei26-dongkerblue: #0F5C5C;
+  --hei26-skyblue: #157A7A;
+  --hei26-linearblue: linear-gradient(90deg, #0F5C5C 0%, #1F8F8F 100%);
+  --hei26-linearyellow: linear-gradient(90deg, #E6B800 0%, #F2A900 100%);
+  --hei26-turquoise: #7CC6C6;
+  --hei26-deepgreen: #0A3F3F;
+  --hei26-forest: #0F5C5C;
+  --hei26-gold: #E6B800;
+  --hei26-amber: #F2A900;
+  --hei26-gold-soft: #F6D86B;
+  --hei26-coral: #E2725B;
+  --hei26-coral-dark: #C85A43;
+  --hei26-coral-soft: #F2B5A6;
+  --hei26-cream: #FBF8F1;
+  --hei26-sand: #F0E9DC;
+  --hei26-gray: rgba(0, 73, 102, 0.65);
+  --container-max: 1440px;
+  --container-pad: clamp(1rem, 4vw, 2.5rem);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-inter);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), sans-serif;
+  overflow-x: clip;
+}
+
+#modal-root {
+  position: relative;
+  z-index: 11000;
+  isolation: isolate;
+}
+
+.hei-container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--container-pad);
+  box-sizing: border-box;
 }

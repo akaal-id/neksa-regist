@@ -1,0 +1,188 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.text {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  font-size: clamp(12px, 1vw, 14px);
+  font-weight: 500;
+  white-space: nowrap;
+  border-radius: 999px;
+  height: 48px;
+  box-sizing: border-box;
+}
+
+.iconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  margin-left: -1px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: background 0.3s ease, transform 1s ease;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.5;
+}
+
+.primary .text {
+  color: white;
+  background: var(--hei26-linearblue);
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+}
+
+.primary .iconContainer {
+  border: 1.5px solid var(--hei26-skyblue);
+  background: transparent;
+}
+
+.primary .icon {
+  color: var(--hei26-skyblue);
+}
+
+.primary:hover:not(:disabled) .text {
+  background: linear-gradient(90deg, #0F5C5C 0%, #1F8F8F 100%);
+}
+
+.primary:hover:not(:disabled) .iconContainer {
+  background: var(--hei26-skyblue);
+  transform: translateX(4px);
+}
+
+.primary:hover:not(:disabled) .iconContainer .icon {
+  color: var(--background);
+}
+
+.secondary .text {
+  color: var(--hei26-dongkerblue);
+  background: transparent;
+}
+
+.secondary .iconContainer {
+  border: 1.5px solid var(--hei26-skyblue);
+  background: transparent;
+}
+
+.secondary .icon {
+  color: var(--hei26-skyblue);
+}
+
+.secondary:hover:not(:disabled) .text {
+  color: var(--hei26-turquoise);
+}
+
+.secondary:hover:not(:disabled) .iconContainer {
+  background: var(--hei26-skyblue);
+  transform: translateX(4px);
+}
+
+.secondary:hover:not(:disabled) .iconContainer .icon {
+  color: var(--background);
+}
+
+.tertiary .text {
+  color: var(--hei26-dongkerblue);
+  background: transparent;
+  padding: 12px 0;
+}
+
+.tertiary:hover:not(:disabled) .text {
+  color: var(--hei26-turquoise);
+}
+
+.yellow .text {
+  color: white;
+  background: var(--hei26-linearyellow);
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+}
+
+.yellow .iconContainer {
+  border: 1.5px solid #F2A900;
+  background: transparent;
+}
+
+.yellow .icon {
+  color: #F2A900;
+}
+
+.yellow:hover:not(:disabled) .iconContainer {
+  background: #F2A900;
+  transform: translateX(4px);
+}
+
+.yellow:hover:not(:disabled) .iconContainer .icon {
+  color: white;
+}
+
+.outline .text {
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+}
+
+.outline .iconContainer {
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  background: transparent;
+}
+
+.outline .icon {
+  color: white;
+}
+
+.outline:hover:not(:disabled) .text {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.outline:hover:not(:disabled) .iconContainer {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(4px);
+}
+
+.outline:hover:not(:disabled) .iconContainer .icon {
+  color: white;
+}
+
+.button:focus-visible {
+  outline: 1.5px solid var(--hei26-skyblue);
+  outline-offset: 2px;
+}
+
+.fullWidth {
+  width: 100%;
+  justify-content: center;
+}
+
+.fullWidth .text {
+  flex: 1;
+  justify-content: center;
+}
