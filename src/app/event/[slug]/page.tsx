@@ -1,18 +1,62 @@
 'use client'
 import { useEffect, useState, use } from 'react'
-import { branding } from '../../../lib/branding'
 import { supabase } from '../../../lib/supabaseClient'
-import { ChevronLeft, Check } from 'lucide-react'
+import { Calendar, ChevronLeft, Check, MapPin } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { jsPDF } from 'jspdf'
-import QRCode from 'qrcode'
-import { Scanner } from '@yudiel/react-qr-scanner'
 import { useRouter } from 'next/navigation'
+import { formatEventDateTime, EventRecord } from '../../../lib/events'
+import { getRegistrationCount, isEventFull, getTicketCode, formatTicketCodeDisplay } from '../../../lib/registrations'
+import { createTicketPdf } from '../../../lib/ticketPdf'
+import { getSpotsLeft, isPastEvent } from '../../../lib/eventList'
 import Button from '../../../components/Button/Button'
+import RichTextContent from '../../../components/RichTextContent/RichTextContent'
 import { EditorialInput, EditorialSelect } from '../../../components/ui/editorial-form'
 import formStyles from '../../../components/ui/EditorialForm.module.css'
 import styles from '../../../styles/shared.module.css'
 import btnStyles from '../../../components/Button/Button.module.css'
+
+function getStatusBadge(event: EventRecord, registrationCount: number) {
+  const past = isPastEvent(event.date)
+  const full = isEventFull(event.capacity, registrationCount)
+  const spotsLeft = getSpotsLeft(event, registrationCount)
+  const fewSpots = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 5 && !past
+
+  if (past) {
+    return { label: 'Past Event', className: styles.badgeMuted }
+  }
+  if (full) {
+    return { label: 'Sold Out', className: styles.badgeFull }
+  }
+  if (fewSpots) {
+    return { label: `${spotsLeft} spots left`, className: styles.badgeWarning }
+  }
+  return { label: 'Open for Registration', className: styles.badgeGold }
+}
+
+function EventDetailSkeleton() {
+  return (
+    <main className={styles.page}>
+      <section className={styles.eventDetailSection}>
+        <div className={`${styles.skeletonBlock} ${styles.eventDetailMedia}`} />
+        <div className={styles.eventDetailPanel}>
+          <div className={styles.eventDetailBody}>
+            <div className={`${styles.skeletonBlock} ${styles.skeletonBadge}`} />
+            <div className={`${styles.skeletonBlock} ${styles.eventDetailSkeletonTitle}`} />
+            <div className={`${styles.skeletonBlock} ${styles.skeletonLine}`} />
+            <div className={`${styles.skeletonBlock} ${styles.skeletonLineShort}`} />
+            <div className={styles.eventDetailFacts}>
+              <div className={`${styles.skeletonBlock} ${styles.eventDetailSkeletonFact}`} />
+              <div className={`${styles.skeletonBlock} ${styles.eventDetailSkeletonFact}`} />
+            </div>
+          </div>
+          <div className={styles.eventDetailActions}>
+            <div className={`${styles.skeletonBlock} ${styles.eventDetailBack}`} style={{ width: 120, height: 36 }} />
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
 
 export default function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -20,14 +64,16 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
 
   const [event, setEvent] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [modalMode, setModalMode] = useState<'none' | 'register' | 'scan'>('none')
 
   const [formData, setFormData] = useState({ full_name: '', email: '', title: '', phone: '', dob: '', gender: '' })
   const [loading, setLoading] = useState(false)
   const [ticketData, setTicketData] = useState<any>(null)
 
-  const [scanResult, setScanResult] = useState<any>(null)
-  const [isScanning, setIsScanning] = useState(true)
+  const [registrationCount, setRegistrationCount] = useState(0)
+
+  const registrationFull = event ? isEventFull(event.capacity, registrationCount) : false
+  const isPast = event ? isPastEvent(event.date) : false
+  const statusBadge = event ? getStatusBadge(event, registrationCount) : null
 
   useEffect(() => {
     async function loadEvent() {
@@ -45,7 +91,9 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
         }
 
         if (eventData) {
-          setEvent(eventData)
+            setEvent(eventData)
+            const count = await getRegistrationCount(eventData.id)
+            setRegistrationCount(count)
         } else {
           setError('Event not found.')
         }
@@ -58,85 +106,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
   }, [resolvedParams.slug])
 
   const generatePDF = async (user: any, eventData: any) => {
-    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
-    const width = doc.internal.pageSize.getWidth()
-    const height = doc.internal.pageSize.getHeight()
-
-    const leftWidth = width * 0.35
-    doc.setFillColor(15, 92, 92)
-    doc.rect(0, 0, leftWidth, height, 'F')
-
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.text(branding.ticketLabel, 20, 20)
-
-    try {
-      const qrDataUrl = await QRCode.toDataURL(user.id.toString(), { margin: 2, width: 500 })
-      const qrSize = 60
-      const qrX = (leftWidth - qrSize) / 2
-      doc.addImage(qrDataUrl, 'PNG', qrX, 60, qrSize, qrSize)
-
-      doc.setFont('courier', 'normal')
-      doc.setFontSize(10)
-      doc.setTextColor(200, 200, 200)
-      const idText = `ID: ${user.id}`.toUpperCase()
-      doc.text(idText, (leftWidth - doc.getTextWidth(idText)) / 2, 60 + qrSize + 10)
-    } catch (err) {
-      console.error('QR Error', err)
-    }
-
-    const rightMargin = leftWidth + 20
-
-    doc.setTextColor(100, 100, 100)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('OFFICIAL EVENT TICKET', rightMargin, 20)
-
-    doc.setTextColor(28, 43, 43)
-    doc.setFontSize(28)
-    const eventName = eventData.name.length > 25 ? eventData.name.substring(0, 25) + '...' : eventData.name
-    doc.text(eventName, rightMargin, 35)
-
-    doc.setDrawColor(200, 200, 200)
-    doc.line(rightMargin, 45, width - 20, 45)
-
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('ATTENDEE', rightMargin, 60)
-
-    doc.setFontSize(22)
-    doc.setTextColor(28, 43, 43)
-    doc.text(user.full_name, rightMargin, 72)
-
-    if (user.title && user.title !== '-') {
-      doc.setFontSize(14)
-      doc.setTextColor(80, 80, 80)
-      doc.text(user.title.toUpperCase(), rightMargin, 80)
-      doc.setFontSize(12)
-      doc.setTextColor(100, 100, 100)
-      doc.text(user.email, rightMargin, 88)
-    } else {
-      doc.setFontSize(12)
-      doc.setTextColor(80, 80, 80)
-      doc.text(user.email, rightMargin, 82)
-    }
-
-    const gridY = 110
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('DATE', rightMargin, gridY)
-    doc.setFontSize(14)
-    doc.setTextColor(28, 43, 43)
-    doc.text(new Date(eventData.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }), rightMargin, gridY + 10)
-
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('LOCATION', rightMargin + 80, gridY)
-    doc.setFontSize(14)
-    doc.setTextColor(28, 43, 43)
-    doc.text(doc.splitTextToSize(eventData.address, 90), rightMargin + 80, gridY + 10)
-
+    const doc = await createTicketPdf(user, eventData)
     doc.save(`${user.full_name}_ticket.pdf`)
   }
 
@@ -145,42 +115,34 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
     if (!event) return
     setLoading(true)
 
-    const { data, error } = await supabase.from('registrations').insert([{
-      ...formData,
-      event_id: event.id,
-      status: 'pending'
-    }]).select().single()
+    try {
+      const currentCount = await getRegistrationCount(event.id)
+      if (isEventFull(event.capacity, currentCount)) {
+        setRegistrationCount(currentCount)
+        alert('Sorry, this event is fully booked.')
+        setLoading(false)
+        return
+      }
 
-    if (error) {
-      alert(error.message)
-    } else {
-      setTicketData(data)
-      setTimeout(() => generatePDF(data, event), 500)
+      const { data, error } = await supabase.from('registrations').insert([{
+        ...formData,
+        event_id: event.id,
+        status: 'pending'
+      }]).select().single()
+
+      if (error) {
+        alert(error.message)
+      } else {
+        setRegistrationCount(currentCount + 1)
+        const ticketCode = getTicketCode(data)
+        const enriched = { ...data, ticket_code: ticketCode }
+        setTicketData(enriched)
+        setTimeout(() => generatePDF(enriched, event), 500)
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Registration failed')
     }
     setLoading(false)
-  }
-
-  const handleScan = async (result: any) => {
-    if (result && result[0]?.rawValue && isScanning) {
-      const id = result[0].rawValue
-      setIsScanning(false)
-
-      await supabase.from('registrations').update({ status: 'attended' }).eq('id', id).eq('event_id', event.id)
-
-      const { data } = await supabase.from('registrations').select('*').eq('id', id).single()
-      if (data) setScanResult(data)
-    }
-  }
-
-  const resetScanner = () => {
-    setScanResult(null)
-    setIsScanning(true)
-  }
-
-  const closeRegisterModal = () => {
-    setModalMode('none')
-    setTicketData(null)
-    setFormData({ full_name: '', email: '', title: '', phone: '', dob: '', gender: '' })
   }
 
   if (error) return (
@@ -191,172 +153,187 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
     </div>
   )
 
-  if (!event) return (
-    <div className={styles.loading} style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      Loading Event...
-    </div>
-  )
+  if (!event) return <EventDetailSkeleton />
 
   return (
     <main className={styles.page}>
-      <section className={styles.eventHero}>
-        <button onClick={() => router.push('/')} className={styles.backBtn}>
-          <ChevronLeft size={16} /> All Events
-        </button>
+      <section className={styles.eventDetailSection}>
+        <div className={styles.eventDetailMedia}>
+        {event.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={event.image_url} alt={event.name} className={styles.eventDetailImage} />
+        ) : (
+          <div className={styles.eventDetailPlaceholder} aria-hidden />
+        )}
+      </div>
 
-        <p className={styles.heroEyebrow}>Open for Registration</p>
-        <h1 className={styles.heroTitle}>{event.name}</h1>
-        <p className={styles.heroSubtitle}>{event.description || 'Join us for an unforgettable experience.'}</p>
+      <div className={styles.eventDetailPanel}>
+        <div className={styles.eventDetailBody}>
+              <div className={styles.eventDetailIntro}>
+                {statusBadge && (
+                  <span className={`${styles.badge} ${statusBadge.className}`}>{statusBadge.label}</span>
+                )}
 
-        <div className={styles.eventMeta}>
-          <div className={styles.eventMetaItem}>
-            <span>Date</span>
-            <span>{new Date(event.date).toLocaleDateString()}</span>
-          </div>
-          <div className={styles.eventMetaItem}>
-            <span>Location</span>
-            <span>{event.address}</span>
-          </div>
-        </div>
-
-        <div className={styles.ctaRow}>
-          <Button variant="yellow" onClick={() => setModalMode('register')}>Register Now</Button>
-          <Button variant="outline" onClick={() => setModalMode('scan')}>Scan RSVP</Button>
-        </div>
-      </section>
-
-      <footer className={styles.footer}>
-        <p className={styles.footerBrand}>{branding.appName}, your RSVP registration system</p>
-        <p>© Copyright {branding.copyright} 2026</p>
-      </footer>
-
-      {modalMode === 'register' && (
-        <div className={styles.modalOverlay}>
-          <div className={`${styles.modal} ${styles.modalWide}`}>
-            <button onClick={closeRegisterModal} className={styles.modalBack}>
-              <ChevronLeft size={18} /> Back
-            </button>
-
-            {!ticketData ? (
-              <>
-                <h2 className={styles.modalTitle}>Secure your Spot</h2>
-                <p className={styles.modalLead}>Fill in your details to receive your entry pass.</p>
-
-                <form onSubmit={handleRegister} className={styles.formBlock}>
-                  <div className={formStyles.gridHalf}>
-                    <EditorialInput
-                      label="Full Name"
-                      required
-                      placeholder="e.g. Asad Muhammad"
-                      value={formData.full_name}
-                      onChange={e => setFormData({ ...formData, full_name: e.target.value })}
-                    />
-                    <EditorialInput
-                      label="Job Title"
-                      required
-                      placeholder="e.g. Director"
-                      value={formData.title}
-                      onChange={e => setFormData({ ...formData, title: e.target.value })}
-                    />
-                  </div>
-
-                  <EditorialInput
-                    label="Email Address"
-                    type="email"
-                    required
-                    placeholder="asad@example.com"
-                    value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  />
-
-                  <EditorialInput
-                    label="Phone Number"
-                    type="tel"
-                    placeholder="+62 812..."
-                    value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                  />
-
-                  <div className={formStyles.gridHalf}>
-                    <EditorialInput
-                      label="Date of Birth"
-                      type="date"
-                      value={formData.dob}
-                      onChange={e => setFormData({ ...formData, dob: e.target.value })}
-                    />
-                    <EditorialSelect
-                      label="Gender"
-                      placeholder="Select"
-                      value={formData.gender}
-                      onChange={e => setFormData({ ...formData, gender: e.target.value })}
-                      options={[
-                        { value: 'Male', label: 'Male' },
-                        { value: 'Female', label: 'Female' },
-                      ]}
-                    />
-                  </div>
-
-                  <Button type="submit" disabled={loading} className={btnStyles.fullWidth}>
-                    {loading ? 'Generating Ticket...' : 'Complete Registration'}
-                  </Button>
-                </form>
-              </>
-            ) : (
-              <div className={styles.successCenter}>
-                <div className={styles.successIcon}>
-                  <Check size={36} strokeWidth={2.5} />
-                </div>
-                <h2 className={styles.modalTitle}>You&apos;re In!</h2>
-                <p className={styles.modalLead}>Your ticket has been downloaded automatically.</p>
-
-                <div className={styles.qrBox}>
-                  <QRCodeSVG value={ticketData.id.toString()} size={180} />
-                  <p className={styles.qrId}>#{ticketData.id}</p>
-                </div>
-
-                <button onClick={() => generatePDF(ticketData, event)} className={styles.textLink}>
-                  Download Ticket Again
-                </button>
-                <button onClick={closeRegisterModal} className={styles.textLinkMuted}>
-                  Close Window
-                </button>
+                <h1 className={styles.eventDetailTitle}>{event.name}</h1>
+                <RichTextContent
+                  html={event.description}
+                  className={styles.eventDetailDescription}
+                />
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {modalMode === 'scan' && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
-            <button onClick={() => { setModalMode('none'); resetScanner() }} className={styles.modalBack}>
-              <ChevronLeft size={18} /> Back
-            </button>
-
-            <div className={styles.scannerCenter}>
-              {!scanResult ? (
-                <>
-                  <h2 className={styles.modalTitle}>Scan Entry Pass</h2>
-                  <div className={styles.scannerBox}>
-                    <Scanner onScan={handleScan} paused={!isScanning} />
-                    <div className={styles.scannerOverlay} />
+              <div className={styles.eventDetailFacts}>
+                <div className={styles.eventDetailFact}>
+                  <div className={styles.eventDetailFactIcon}>
+                    <Calendar size={18} aria-hidden />
                   </div>
-                </>
+                  <div>
+                    <span className={styles.eventDetailFactLabel}>Date &amp; Time</span>
+                    <span className={styles.eventDetailFactValue}>
+                      {formatEventDateTime(event.date, event.start_time, event.end_time)}
+                    </span>
+                  </div>
+                </div>
+
+                {event.address && (
+                  <div className={styles.eventDetailFact}>
+                    <div className={styles.eventDetailFactIcon}>
+                      <MapPin size={18} aria-hidden />
+                    </div>
+                    <div>
+                      <span className={styles.eventDetailFactLabel}>Location</span>
+                      <span className={styles.eventDetailFactValue}>{event.address}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {ticketData ? (
+                <div className={styles.eventDetailSuccess}>
+                  <div className={styles.successIcon}>
+                    <Check size={32} strokeWidth={2.5} />
+                  </div>
+                  <h2 className={styles.eventDetailSuccessTitle}>You&apos;re In!</h2>
+                  <p className={styles.eventDetailSuccessLead}>
+                    Your ticket has been downloaded automatically. Screenshot this QR code or download
+                    your e-ticket below.
+                  </p>
+                  <div className={styles.eventDetailSuccessTicket}>
+                    <div className={styles.qrBox}>
+                      <QRCodeSVG value={getTicketCode(ticketData)} size={160} />
+                      <p className={styles.qrId}>{formatTicketCodeDisplay(getTicketCode(ticketData))}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => generatePDF(ticketData, event)}
+                      className={styles.textLink}
+                    >
+                      Download Ticket Again
+                    </button>
+                  </div>
+                </div>
+              ) : isPast ? (
+                <p className={styles.eventDetailNotice}>This event has ended.</p>
+              ) : registrationFull ? (
+                <p className={`${styles.eventDetailNotice} ${styles.eventDetailNoticeSoldOut}`}>
+                  This event has reached its registration limit.
+                </p>
+              ) : (
+                <div className={styles.eventDetailForm}>
+                  <p className={styles.eventDetailFormEyebrow}>Register</p>
+
+                  <form
+                    id="event-registration-form"
+                    onSubmit={handleRegister}
+                    className={`${styles.eventDetailFormBlock} ${formStyles.eventDetailForm}`}
+                  >
+                    <div className={formStyles.gridHalf}>
+                      <EditorialInput
+                        label="Full Name"
+                        required
+                        placeholder="e.g. Asad Muhammad"
+                        value={formData.full_name}
+                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      />
+                      <EditorialInput
+                        label="Job Title"
+                        required
+                        placeholder="e.g. Director"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      />
+                    </div>
+
+                    <div className={formStyles.gridHalf}>
+                      <EditorialInput
+                        label="Email Address"
+                        type="email"
+                        required
+                        placeholder="asad@example.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      />
+
+                      <EditorialInput
+                        label="Phone Number"
+                        type="tel"
+                        placeholder="+62 812..."
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      />
+                    </div>
+
+                    <div className={formStyles.gridHalf}>
+                      <EditorialInput
+                        label="Date of Birth"
+                        type="date"
+                        value={formData.dob}
+                        onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                      />
+                      <EditorialSelect
+                        label="Gender"
+                        placeholder="Select"
+                        value={formData.gender}
+                        onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                        options={[
+                          { value: 'Male', label: 'Male' },
+                          { value: 'Female', label: 'Female' },
+                        ]}
+                      />
+                    </div>
+                  </form>
+                </div>
+              )}
+        </div>
+
+        <div className={styles.eventDetailActions}>
+          <button type="button" onClick={() => router.push('/')} className={styles.eventDetailBack}>
+            <ChevronLeft size={16} aria-hidden />
+            All Events
+          </button>
+
+          {!ticketData && !isPast && !registrationFull && (
+            <Button
+              type="submit"
+              form="event-registration-form"
+              variant="yellow"
+              hideIcon
+              disabled={loading}
+              className={`${btnStyles.compact} ${styles.eventDetailActionsSubmit}`}
+              textClassName={styles.eventDetailSubmitText}
+            >
+              {loading ? (
+                'Generating...'
               ) : (
                 <>
-                  <h2 className={styles.modalTitle}>Welcome!</h2>
-                  <div className={styles.scanResultCard}>
-                    <p className={styles.scanResultLabel}>Attendee</p>
-                    <p className={styles.scanResultName}>{scanResult.title} {scanResult.full_name}</p>
-                  </div>
-                  <Button onClick={resetScanner} className={btnStyles.fullWidth}>Scan Next Person</Button>
-                  <button onClick={() => setModalMode('none')} className={styles.textLinkMuted}>Close</button>
+                  <span className={styles.eventDetailSubmitLabelFull}>Complete Registration</span>
+                  <span className={styles.eventDetailSubmitLabelShort}>Register</span>
                 </>
               )}
-            </div>
-          </div>
+            </Button>
+          )}
         </div>
-      )}
+      </div>
+      </section>
     </main>
   )
 }

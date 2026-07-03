@@ -97,10 +97,61 @@
   margin-bottom: 0;
 }
 
+.eventDetailForm .label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--hei26-gray);
+  margin-bottom: 0.45rem;
+}
+
+.eventDetailForm .inputBase,
+.eventDetailForm .selectBase {
+  background: #ffffff;
+  border: 1px solid rgba(0, 73, 102, 0.12);
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+  box-shadow: none;
+}
+
+.eventDetailForm .inputBase:focus,
+.eventDetailForm .selectBase:focus {
+  border-color: var(--hei26-skyblue);
+  box-shadow: 0 0 0 3px rgba(21, 122, 122, 0.1);
+}
+
+.eventDetailForm .selectBase {
+  padding-right: 2.25rem;
+  background-color: #ffffff;
+  background-position: right 0.85rem center;
+}
+
+.eventDetailForm .gridHalf {
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .eventDetailForm .gridHalf {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1280px) {
+  .eventDetailForm .gridHalf {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 641px) {
+  .eventDetailForm .gridHalf {
+    gap: 1rem;
+  }
+}
+
 .gridHalf {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 @media (max-width: 640px) {

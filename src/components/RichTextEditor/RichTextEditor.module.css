@@ -1,0 +1,114 @@
+.editor {
+  border: 1px solid rgba(0, 73, 102, 0.14);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.editor:focus-within {
+  border-color: rgba(15, 92, 92, 0.45);
+  box-shadow: 0 0 0 3px rgba(124, 198, 198, 0.2);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid rgba(0, 73, 102, 0.08);
+  background: var(--surface-muted);
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--hei26-dongkerblue);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toolBtn:hover:not(:disabled) {
+  background: rgba(15, 92, 92, 0.08);
+}
+
+.toolBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolBtnActive {
+  background: rgba(15, 92, 92, 0.14);
+  color: var(--hei26-deepgreen);
+}
+
+.toolbarDivider {
+  width: 1px;
+  height: 20px;
+  margin: 0 0.15rem;
+  background: rgba(0, 73, 102, 0.12);
+}
+
+.editorContent {
+  min-height: 160px;
+  padding: 0.9rem 1rem 1rem;
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--hei26-dongkerblue);
+}
+
+.editorContent:focus {
+  outline: none;
+}
+
+.editorContent p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: rgba(0, 73, 102, 0.4);
+  pointer-events: none;
+  height: 0;
+}
+
+.editorContent p {
+  margin: 0 0 0.75rem;
+}
+
+.editorContent p:last-child {
+  margin-bottom: 0;
+}
+
+.editorContent h2,
+.editorContent h3 {
+  margin: 0 0 0.65rem;
+  line-height: 1.3;
+  color: var(--hei26-dongkerblue);
+}
+
+.editorContent h2 {
+  font-size: 1.15rem;
+}
+
+.editorContent h3 {
+  font-size: 1rem;
+}
+
+.editorContent ul,
+.editorContent ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.editorContent blockquote {
+  margin: 0 0 0.75rem;
+  padding-left: 0.85rem;
+  border-left: 3px solid rgba(15, 92, 92, 0.25);
+  color: var(--hei26-gray);
+}

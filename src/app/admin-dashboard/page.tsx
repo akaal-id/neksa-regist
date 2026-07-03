@@ -1,21 +1,34 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { branding } from '../../lib/branding'
-import { supabase } from '../../lib/supabaseClient'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, Calendar, MapPin, ChevronRight, Link as LinkIcon } from 'lucide-react'
+import { Plus, LogOut } from 'lucide-react'
 import Button from '../../components/Button/Button'
-import { EditorialInput, EditorialTextarea } from '../../components/ui/editorial-form'
-import formStyles from '../../components/ui/EditorialForm.module.css'
+import EventFormModal from '../../components/EventFormModal/EventFormModal'
+import EventCard from '../../components/EventCard/EventCard'
+import EventCardSkeleton from '../../components/EventCard/EventCardSkeleton'
+import EventListPagination from '../../components/EventListPagination/EventListPagination'
+import EmptyState from '../../components/EmptyState/EmptyState'
+import AdminEventFilter, { AdminStatusFilter } from '../../components/AdminEventFilter/AdminEventFilter'
+import {
+  EVENTS_PER_PAGE,
+  EventWithCount,
+  fetchEventsWithCounts,
+  getUniqueDates,
+  isPastEvent,
+  paginate,
+  searchEvents,
+} from '../../lib/eventList'
 import styles from '../../styles/shared.module.css'
-import btnStyles from '../../components/Button/Button.module.css'
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const [events, setEvents] = useState<any[]>([])
-  const [showModal, setShowModal] = useState(false)
-  const [newEvent, setNewEvent] = useState({ name: '', description: '', date: '', address: '', slug: '' })
-  const [loading, setLoading] = useState(false)
+  const [events, setEvents] = useState<EventWithCount[]>([])
+  const [loading, setLoading] = useState(true)
+  const [modalMode, setModalMode] = useState<'none' | 'create'>('none')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<AdminStatusFilter>('all')
+  const [dateFilter, setDateFilter] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('isAdmin')
@@ -27,153 +40,163 @@ export default function AdminDashboard() {
   }, [])
 
   const fetchEvents = async () => {
-    const { data } = await supabase.from('events').select('*').order('date', { ascending: false })
-    if (data) setEvents(data)
+    setLoading(true)
+    const data = await fetchEventsWithCounts('desc')
+    setEvents(data)
+    setLoading(false)
   }
+
+  const statusFilteredEvents = useMemo(() => {
+    if (statusFilter === 'upcoming') {
+      return events.filter((event) => !isPastEvent(event.date))
+    }
+    if (statusFilter === 'past') {
+      return events.filter((event) => isPastEvent(event.date))
+    }
+    return events
+  }, [events, statusFilter])
+
+  const availableDates = useMemo(
+    () => getUniqueDates(statusFilteredEvents),
+    [statusFilteredEvents]
+  )
+
+  const filteredEvents = useMemo(() => {
+    let list = statusFilteredEvents
+    if (dateFilter !== 'all') {
+      list = list.filter((event) => event.date === dateFilter)
+    }
+    return searchEvents(list, searchTerm)
+  }, [statusFilteredEvents, dateFilter, searchTerm])
+
+  const pagination = useMemo(
+    () => paginate(filteredEvents, currentPage, EVENTS_PER_PAGE),
+    [filteredEvents, currentPage]
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, dateFilter, searchTerm])
+
+  useEffect(() => {
+    if (dateFilter !== 'all' && !availableDates.includes(dateFilter)) {
+      setDateFilter('all')
+    }
+  }, [availableDates, dateFilter])
 
   const handleLogout = () => {
     localStorage.removeItem('isAdmin')
     router.push('/admin')
   }
 
-  const createEvent = async () => {
-    if (!newEvent.name || !newEvent.date) return alert('Name and Date are required')
+  const openCreate = () => {
+    setModalMode('create')
+  }
 
-    const finalSlug = newEvent.slug || newEvent.name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '')
+  const closeModal = () => {
+    setModalMode('none')
+  }
 
-    setLoading(true)
-    const { error } = await supabase.from('events').insert([{
-      ...newEvent,
-      slug: finalSlug
-    }])
-
-    if (error) {
-      alert(error.message)
-    } else {
-      setShowModal(false)
-      setNewEvent({ name: '', description: '', date: '', address: '', slug: '' })
-      fetchEvents()
+  const emptyMessage = () => {
+    if (events.length === 0) {
+      return 'Create your first event to start collecting RSVPs.'
     }
-    setLoading(false)
+    if (searchTerm.trim()) {
+      return 'No events match your search. Try a different keyword or clear the search.'
+    }
+    if (dateFilter !== 'all') {
+      return 'No events match this date. Try another filter.'
+    }
+    if (statusFilter === 'upcoming') return 'No upcoming events found.'
+    if (statusFilter === 'past') return 'No past events found.'
+    return 'No events match the current filters.'
   }
 
   return (
     <div className={styles.adminPage}>
-      <div className={styles.adminHeader}>
-        <div>
-          <h1 className={styles.adminTitle}>Event Manager</h1>
-          <p className={styles.adminSubtitle}>Select an event to manage RSVPs</p>
+      <div className={styles.adminContent}>
+        <div className={styles.adminHeader}>
+          <div className={styles.adminHeaderMain}>
+            <div className={styles.adminTitleRow}>
+              <h1 className={styles.adminTitle}>Event Manager</h1>
+              {!loading && (
+                <span className={styles.sectionCount}>
+                  {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className={styles.adminActions}>
+            <button onClick={handleLogout} className={styles.iconBtn} aria-label="Log out">
+              <LogOut size={18} />
+            </button>
+            <Button onClick={openCreate} icon={Plus} className={styles.adminCreateBtn}>
+              Create Event
+            </Button>
+          </div>
         </div>
-        <div className={styles.adminActions}>
-          <button onClick={handleLogout} className={styles.iconBtn} aria-label="Log out">
-            <LogOut size={18} />
-          </button>
-          <Button onClick={() => setShowModal(true)} icon={Plus}>
-            Create Event
-          </Button>
-        </div>
-      </div>
 
-      <div className={styles.cardGrid}>
-        {events.length === 0 ? (
-          <div className={styles.empty}>
-            <p>No events found. Create your first one!</p>
+        {!loading && events.length > 0 && (
+          <div className={styles.adminFilters}>
+            <AdminEventFilter
+              dates={availableDates}
+              statusFilter={statusFilter}
+              dateFilter={dateFilter}
+              searchTerm={searchTerm}
+              onStatusChange={setStatusFilter}
+              onDateChange={setDateFilter}
+              onSearchChange={setSearchTerm}
+            />
+          </div>
+        )}
+
+        {loading ? (
+          <div className={styles.cardGrid}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <EventCardSkeleton key={i} />
+            ))}
           </div>
         ) : (
-          events.map(event => (
-            <div
-              key={event.id}
-              onClick={() => router.push(`/admin-dashboard/event/${event.id}`)}
-              className={styles.eventCard}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && router.push(`/admin-dashboard/event/${event.id}`)}
-            >
-              <ChevronRight size={20} className={styles.cardChevron} />
-              <h2 className={styles.cardTitle}>{event.name}</h2>
-              <p className={styles.cardDescription}>{event.description || 'No description'}</p>
-              <div className={styles.cardMeta}>
-                <div className={styles.metaRow}>
-                  <Calendar size={14} />
-                  <span>{new Date(event.date).toLocaleDateString()}</span>
-                </div>
-                <div className={styles.metaRow}>
-                  <MapPin size={14} />
-                  <span>{event.address}</span>
-                </div>
-                {event.slug && (
-                  <div className={styles.metaRow}>
-                    <LinkIcon size={14} />
-                    <span>/event/{event.slug}</span>
-                  </div>
-                )}
-              </div>
+          <>
+            <div className={styles.cardGrid}>
+              {pagination.items.length === 0 ? (
+                <EmptyState
+                  title={events.length === 0 ? 'No events yet' : 'No matching events'}
+                  message={emptyMessage()}
+                  onAction={events.length === 0 ? openCreate : undefined}
+                  actionLabel={events.length === 0 ? 'Create Event' : undefined}
+                />
+              ) : (
+                pagination.items.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    variant="admin"
+                    onClick={() => router.push(`/admin-dashboard/event/${event.id}`)}
+                  />
+                ))
+              )}
             </div>
-          ))
+
+            <EventListPagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              rangeStart={pagination.rangeStart}
+              rangeEnd={pagination.rangeEnd}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
       </div>
 
-      {showModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>Create New Event</h2>
-            <p className={styles.modalLead}>Fill in the details for your new event.</p>
-
-            <div className={styles.formBlock}>
-              <EditorialInput
-                label="Event Name"
-                required
-                placeholder="e.g. HEI Talk Launch Party"
-                value={newEvent.name}
-                onChange={e => setNewEvent({ ...newEvent, name: e.target.value })}
-              />
-
-              <div>
-                <label className={formStyles.label}>Custom URL Slug</label>
-                <div className={styles.slugPrefix}>
-                  <span className={styles.slugPrefixLabel}>{branding.eventUrlPrefix}</span>
-                  <EditorialInput
-                    placeholder="my-event-name"
-                    value={newEvent.slug}
-                    onChange={e => setNewEvent({ ...newEvent, slug: e.target.value })}
-                    containerClassName={styles.slugPrefixInput}
-                  />
-                </div>
-              </div>
-
-              <EditorialInput
-                label="Date"
-                type="date"
-                required
-                value={newEvent.date}
-                onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
-              />
-
-              <EditorialInput
-                label="Location"
-                placeholder="e.g. Grand Ballroom"
-                value={newEvent.address}
-                onChange={e => setNewEvent({ ...newEvent, address: e.target.value })}
-              />
-
-              <EditorialTextarea
-                label="Description"
-                placeholder="Event details..."
-                value={newEvent.description}
-                onChange={e => setNewEvent({ ...newEvent, description: e.target.value })}
-              />
-
-              <div className={styles.formActions}>
-                <Button variant="secondary" onClick={() => setShowModal(false)} className={btnStyles.fullWidth}>
-                  Cancel
-                </Button>
-                <Button onClick={createEvent} disabled={loading} className={btnStyles.fullWidth}>
-                  {loading ? 'Saving...' : 'Create Event'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {modalMode === 'create' && (
+        <EventFormModal
+          mode="create"
+          event={null}
+          onClose={closeModal}
+          onSaved={fetchEvents}
+        />
       )}
     </div>
   )

@@ -1,0 +1,106 @@
+.imageField {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 0.5rem;
+
+  align-items: center;
+
+}
+
+
+
+.imageUpload {
+
+  width: 100%;
+
+  max-width: 360px;
+
+  aspect-ratio: var(--aspect-instagram);
+
+  border: 1px dashed rgba(0, 73, 102, 0.25);
+
+  border-radius: 14px;
+
+  overflow: hidden;
+
+  cursor: pointer;
+
+  background: var(--surface-muted);
+
+  transition: border-color 0.2s;
+
+}
+
+
+
+.imageUpload:hover {
+
+  border-color: var(--hei26-skyblue);
+
+}
+
+
+
+.imagePreview {
+
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: cover;
+
+  display: block;
+
+}
+
+
+
+.imagePlaceholder {
+
+  width: 100%;
+
+  height: 100%;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 0.35rem;
+
+  color: var(--hei26-gray);
+
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
+
+  font-size: 14px;
+
+  text-align: center;
+
+  padding: 1rem;
+
+}
+
+
+
+.imageHint {
+
+  font-size: 12px;
+
+  opacity: 0.8;
+
+}
+
+
+
+.fileInput {
+
+  display: none;
+
+}
+

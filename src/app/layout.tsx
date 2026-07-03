@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import AppFooter from "../components/AppFooter/AppFooter";
+import { brand } from "../lib/brand";
 import "./globals.css";
 
 const inter = Inter({
@@ -17,12 +19,12 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#F4F7F6",
+  themeColor: "#FFFFFF",
 };
 
 export const metadata: Metadata = {
-  title: "HEI Talk",
-  description: "Whitelabel event registration and RSVP system",
+  title: brand.name,
+  description: `${brand.name} — ${brand.tagline}`,
 };
 
 export default function RootLayout({
@@ -37,6 +39,7 @@ export default function RootLayout({
       >
         <div id="modal-root" />
         {children}
+        <AppFooter />
       </body>
     </html>
   );

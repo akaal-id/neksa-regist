@@ -186,3 +186,29 @@
   flex: 1;
   justify-content: center;
 }
+
+.compact {
+  max-width: 100%;
+}
+
+.compact .text {
+  padding: 12px 20px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 520px) {
+  .compact .text {
+    padding: 12px 16px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+}
+
+@media (max-width: 380px) {
+  .compact .text {
+    padding: 12px 14px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+}

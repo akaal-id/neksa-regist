@@ -1,14 +1,24 @@
 'use client'
 import { useEffect, useState, use, useMemo } from 'react'
-import { branding } from '../../../../lib/branding'
 import { supabase } from '../../../../lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, QrCode, List, UserCheck, Upload, Download, Eye, Search, ArrowUpDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, QrCode, List, UserCheck, Upload, Download, Eye, Search, ArrowUpDown, User, Pencil, Trash2 } from 'lucide-react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import Papa from 'papaparse'
-import { jsPDF } from 'jspdf'
-import QRCode from 'qrcode'
+import { createTicketPdf } from '../../../../lib/ticketPdf'
+import { formatEventDateTime, EventRecord } from '../../../../lib/events'
+import { deleteEvent } from '../../../../lib/eventImage'
 import Button from '../../../../components/Button/Button'
+import EventFormModal from '../../../../components/EventFormModal/EventFormModal'
+import VisitorDetailModal from '../../../../components/VisitorDetailModal/VisitorDetailModal'
+import {
+  RegistrationRecord,
+  displayValue,
+  formatDob,
+  formatRegistrationDate,
+  getTicketCode,
+  parseScannedTicket,
+} from '../../../../lib/registrations'
 import styles from '../../../../styles/shared.module.css'
 import admin from '../../../../styles/admin.module.css'
 import btnStyles from '../../../../components/Button/Button.module.css'
@@ -18,22 +28,29 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const eventId = resolvedParams.id
   const router = useRouter()
 
-  const [event, setEvent] = useState<any>(null)
+  const [event, setEvent] = useState<EventRecord | null>(null)
   const [activeTab, setActiveTab] = useState<'rsvp' | 'scan'>('rsvp')
-  const [registrations, setRegistrations] = useState<any[]>([])
+  const [registrations, setRegistrations] = useState<RegistrationRecord[]>([])
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
+  const [sortConfig, setSortConfig] = useState<{ key: keyof RegistrationRecord; direction: 'asc' | 'desc' } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  const [lastScan, setLastScan] = useState<any>(null)
+  const [lastScan, setLastScan] = useState<RegistrationRecord | null>(null)
   const [isScanning, setIsScanning] = useState(true)
+  const [selectedVisitor, setSelectedVisitor] = useState<RegistrationRecord | null>(null)
+
+  const fetchEvent = async () => {
+    const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
+    if (data) setEvent(data)
+  }
 
   useEffect(() => {
     async function loadData() {
-      const { data: eventData } = await supabase.from('events').select('*').eq('id', eventId).single()
-      if (eventData) setEvent(eventData)
+      await fetchEvent()
       fetchRegistrations()
     }
     loadData()
@@ -54,7 +71,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       data = data.filter(reg =>
         (reg.full_name?.toLowerCase() || '').includes(lowerTerm) ||
         (reg.email?.toLowerCase() || '').includes(lowerTerm) ||
-        (reg.title?.toLowerCase() || '').includes(lowerTerm)
+        (reg.title?.toLowerCase() || '').includes(lowerTerm) ||
+        (reg.phone?.toLowerCase() || '').includes(lowerTerm)
       )
     }
 
@@ -81,7 +99,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     setCurrentPage(1)
   }, [searchTerm])
 
-  const requestSort = (key: string) => {
+  const requestSort = (key: keyof RegistrationRecord) => {
     let direction: 'asc' | 'desc' = 'asc'
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc'
@@ -136,9 +154,26 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         }
 
         if (formattedRows.length > 0) {
-          alert(`Successfully imported ${formattedRows.length} users!${errors.length > 0 ? ' (Some rows were skipped due to errors)' : ''}`)
+          const capacity = event?.capacity
+          const remaining = capacity != null
+            ? Math.max(0, capacity - registrations.length)
+            : formattedRows.length
+          const rowsToInsert = capacity != null
+            ? formattedRows.slice(0, remaining)
+            : formattedRows
 
-          const { error } = await supabase.from('registrations').insert(formattedRows)
+          if (capacity != null && formattedRows.length > remaining) {
+            alert(`Only ${remaining} spot(s) available. Importing ${rowsToInsert.length} of ${formattedRows.length} row(s).`)
+          } else {
+            alert(`Successfully imported ${rowsToInsert.length} users!${errors.length > 0 ? ' (Some rows were skipped due to errors)' : ''}`)
+          }
+
+          if (rowsToInsert.length === 0) {
+            alert('No spots available. Event is at capacity.')
+            return
+          }
+
+          const { error } = await supabase.from('registrations').insert(rowsToInsert)
           if (error) {
             alert('Import Error: ' + error.message)
           } else {
@@ -151,8 +186,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     })
   }
 
-  const handleStatusChange = async (userId: string, newStatus: string) => {
+  const handleStatusChange = async (userId: number, newStatus: string) => {
     setRegistrations(prev => prev.map(reg => reg.id === userId ? { ...reg, status: newStatus } : reg))
+    setSelectedVisitor(prev => prev?.id === userId ? { ...prev, status: newStatus } : prev)
     const { error } = await supabase.from('registrations').update({ status: newStatus }).eq('id', userId)
     if (error) {
       alert('Failed to update status')
@@ -160,63 +196,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  const createPdfDoc = async (user: any) => {
-    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
-    const width = doc.internal.pageSize.getWidth()
-    const height = doc.internal.pageSize.getHeight()
-    const leftWidth = width * 0.35
-
-    doc.setFillColor(15, 92, 92)
-    doc.rect(0, 0, leftWidth, height, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.text(branding.ticketLabel, 20, 20)
-
-    try {
-      const qrDataUrl = await QRCode.toDataURL(user.id.toString(), { margin: 2, width: 500 })
-      doc.addImage(qrDataUrl, 'PNG', (leftWidth - 60) / 2, 60, 60, 60)
-      doc.setFont('courier', 'normal')
-      doc.setFontSize(10)
-      doc.setTextColor(200, 200, 200)
-      doc.text(`ID: ${user.id}`.toUpperCase(), (leftWidth - doc.getTextWidth(`ID: ${user.id}`.toUpperCase())) / 2, 130)
-    } catch (err) {}
-
-    const rightMargin = leftWidth + 20
-    doc.setTextColor(100, 100, 100)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('OFFICIAL EVENT TICKET', rightMargin, 20)
-    doc.setTextColor(28, 43, 43)
-    doc.setFontSize(28)
-    doc.text(event.name.substring(0, 25), rightMargin, 35)
-    doc.setDrawColor(200, 200, 200)
-    doc.line(rightMargin, 45, width - 20, 45)
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('ATTENDEE', rightMargin, 60)
-    doc.setFontSize(22)
-    doc.setTextColor(28, 43, 43)
-    doc.text(user.full_name, rightMargin, 72)
-    if (user.title && user.title !== '-') {
-      doc.setFontSize(14)
-      doc.setTextColor(80, 80, 80)
-      doc.text(user.title.toUpperCase(), rightMargin, 80)
-    }
-    const gridY = 110
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('DATE', rightMargin, gridY)
-    doc.setFontSize(14)
-    doc.setTextColor(28, 43, 43)
-    doc.text(new Date(event.date).toLocaleDateString(), rightMargin, gridY + 10)
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('LOCATION', rightMargin + 80, gridY)
-    doc.setFontSize(14)
-    doc.setTextColor(28, 43, 43)
-    doc.text(doc.splitTextToSize(event.address, 90), rightMargin + 80, gridY + 10)
-    return doc
+  const createPdfDoc = async (user: RegistrationRecord) => {
+    if (!event) throw new Error('Event not loaded')
+    return createTicketPdf(user, event)
   }
 
   const handleViewTicket = async (user: any) => {
@@ -230,16 +212,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const handleExportCsv = () => {
-    if (registrations.length === 0) {
-      alert('No data to export')
+    if (!event || registrations.length === 0) {
+      alert(registrations.length === 0 ? 'No data to export' : 'Event not loaded')
       return
     }
 
-    const headers = ['ID', 'Full Name', 'Email', 'Title', 'Phone', 'DOB', 'Gender', 'Status', 'Created At']
+    const headers = ['Ticket ID', 'Full Name', 'Email', 'Title', 'Phone', 'DOB', 'Gender', 'Status', 'Created At']
     const csvContent = [
       headers.join(','),
       ...registrations.map(reg => [
-        reg.id,
+        getTicketCode(reg),
         `"${reg.full_name || ''}"`,
         `"${reg.email || ''}"`,
         `"${reg.title || ''}"`,
@@ -264,20 +246,44 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleScan = async (result: any) => {
     if (result && result[0]?.rawValue && isScanning) {
-      const ticketId = result[0].rawValue
+      const rawValue = result[0].rawValue
+      const parsed = parseScannedTicket(rawValue)
+      if (!parsed) {
+        alert('Invalid ticket QR code')
+        return
+      }
+
+      if ('eventId' in parsed && parsed.eventId !== Number(eventId)) {
+        alert('This ticket is for a different event')
+        return
+      }
+
       setIsScanning(false)
 
-      const { error } = await supabase
+      let query = supabase
         .from('registrations')
         .update({ status: 'attended' })
-        .eq('id', ticketId)
         .eq('event_id', eventId)
+
+      if ('ticketCode' in parsed) {
+        query = query.eq('ticket_code', parsed.ticketCode)
+      } else {
+        query = query.eq('id', parsed.registrationId)
+      }
+
+      const { error } = await query
 
       if (error) {
         alert('Error: ' + error.message)
         setIsScanning(true)
       } else {
-        const { data } = await supabase.from('registrations').select('*').eq('id', ticketId).single()
+        let fetchQuery = supabase.from('registrations').select('*').eq('event_id', eventId)
+        if ('ticketCode' in parsed) {
+          fetchQuery = fetchQuery.eq('ticket_code', parsed.ticketCode)
+        } else {
+          fetchQuery = fetchQuery.eq('id', parsed.registrationId)
+        }
+        const { data } = await fetchQuery.single()
         setLastScan(data)
         fetchRegistrations()
         new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3').play().catch(() => {})
@@ -288,6 +294,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const resetScanner = () => {
     setLastScan(null)
     setIsScanning(true)
+  }
+
+  const handleDeleteEvent = async () => {
+    if (!event) return
+
+    const registrationNote =
+      registrations.length > 0
+        ? ` This will also permanently delete ${registrations.length} registration(s).`
+        : ''
+
+    const confirmed = window.confirm(
+      `Delete "${event.name}"?${registrationNote} This action cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    try {
+      await deleteEvent(event)
+      router.push('/admin-dashboard')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete event'
+      alert(message)
+      setIsDeleting(false)
+    }
   }
 
   if (!event) return <div className={styles.loading}>Loading...</div>
@@ -314,10 +344,41 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </button>
           </div>
         </div>
-        <h1 className={admin.detailTitle}>{event.name}</h1>
       </div>
 
-      <div className={admin.detailBody}>
+      <div className={`${admin.detailBody} ${activeTab === 'scan' ? admin.detailBodyScan : ''}`}>
+        {activeTab === 'rsvp' && (
+        <div className={admin.titleRow}>
+          <div>
+            <h1 className={admin.detailTitle}>{event.name}</h1>
+            {event.capacity != null && (
+              <p className={admin.capacitySummary}>
+                {registrations.length} / {event.capacity} registered
+              </p>
+            )}
+          </div>
+          <div className={admin.titleActions}>
+            <button
+              type="button"
+              className={admin.editBtn}
+              onClick={() => setShowEditModal(true)}
+            >
+              <Pencil size={16} />
+              Edit Event
+            </button>
+            <button
+              type="button"
+              className={admin.deleteBtn}
+              onClick={handleDeleteEvent}
+              disabled={isDeleting}
+            >
+              <Trash2 size={16} />
+              {isDeleting ? 'Deleting...' : 'Delete Event'}
+            </button>
+          </div>
+        </div>
+        )}
+
         {activeTab === 'rsvp' && (
           <div className={admin.panel}>
             <div className={admin.toolbar}>
@@ -325,14 +386,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <Search className={admin.searchIcon} size={16} />
                 <input
                   type="text"
-                  placeholder="Search name, email, or title..."
+                  placeholder="Search name, email, phone, or title..."
                   className={admin.searchInput}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className={admin.toolbarActions}>
-                <span className={admin.totalCount}>Total: {registrations.length}</span>
+                <span className={admin.totalCount}>
+                  Total: {registrations.length}
+                  {event.capacity != null ? ` / ${event.capacity}` : ''}
+                </span>
                 <label className={admin.toolBtn}>
                   <Upload size={15} />
                   Import CSV
@@ -355,6 +419,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     <th onClick={() => requestSort('title')}>
                       <span className={admin.thContent}>Title <ArrowUpDown size={12} /></span>
                     </th>
+                    <th onClick={() => requestSort('phone')}>
+                      <span className={admin.thContent}>Phone <ArrowUpDown size={12} /></span>
+                    </th>
                     <th onClick={() => requestSort('status')}>
                       <span className={admin.thContent}>Status <ArrowUpDown size={12} /></span>
                     </th>
@@ -364,13 +431,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <tbody>
                   {paginatedRegistrations.length > 0 ? (
                     paginatedRegistrations.map(reg => (
-                      <tr key={reg.id}>
+                      <tr key={reg.id} className={admin.clickableRow} onClick={() => setSelectedVisitor(reg)}>
                         <td className={admin.nameCell}>
                           {reg.full_name}
-                          <br /><span className={admin.emailSub}>{reg.email}</span>
+                          <br /><span className={admin.emailSub}>{reg.email || '—'}</span>
                         </td>
-                        <td>{reg.title}</td>
-                        <td>
+                        <td>{reg.title || '—'}</td>
+                        <td>{reg.phone || '—'}</td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <select
                             value={reg.status}
                             onChange={(e) => handleStatusChange(reg.id, e.target.value)}
@@ -380,8 +448,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                             <option value="attended">Attended</option>
                           </select>
                         </td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className={admin.actionBtns}>
+                            <button onClick={() => setSelectedVisitor(reg)} className={`${admin.actionBtn} ${admin.actionBtnDetails}`} title="View Details">
+                              <User size={17} />
+                            </button>
                             <button onClick={() => handleViewTicket(reg)} className={`${admin.actionBtn} ${admin.actionBtnView}`} title="View Ticket">
                               <Eye size={17} />
                             </button>
@@ -394,7 +465,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className={admin.emptyRow}>
+                      <td colSpan={6} className={admin.emptyRow}>
                         No registrations found{searchTerm ? ` matching "${searchTerm}"` : ''}
                       </td>
                     </tr>
@@ -431,7 +502,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <div className={admin.scannerPanel}>
             {!lastScan ? (
               <>
-                <div className={`${styles.scannerBox} ${isScanning ? '' : ''}`}>
+                <div className={admin.scannerBox}>
                   <Scanner onScan={handleScan} paused={!isScanning} />
                 </div>
                 <p className={admin.scannerHint}>Point camera at user QR code</p>
@@ -441,12 +512,40 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <UserCheck size={56} className={admin.checkinIcon} />
                 <h2 className={admin.checkinTitle}>Checked In!</h2>
                 <p className={admin.checkinName}>{lastScan.title} {lastScan.full_name}</p>
+                <dl className={admin.scanDetails}>
+                  <div><dt>Email</dt><dd>{displayValue(lastScan.email)}</dd></div>
+                  <div><dt>Phone</dt><dd>{displayValue(lastScan.phone)}</dd></div>
+                  <div><dt>DOB</dt><dd>{formatDob(lastScan.dob)}</dd></div>
+                  <div><dt>Gender</dt><dd>{displayValue(lastScan.gender)}</dd></div>
+                </dl>
+                <button type="button" className={admin.viewDetailsLink} onClick={() => setSelectedVisitor(lastScan)}>
+                  View full details
+                </button>
                 <Button onClick={resetScanner} className={btnStyles.fullWidth}>Scan Next Person</Button>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {selectedVisitor && (
+        <VisitorDetailModal
+          visitor={selectedVisitor}
+          onClose={() => setSelectedVisitor(null)}
+          onStatusChange={handleStatusChange}
+          onViewTicket={handleViewTicket}
+          onDownloadTicket={handleDownloadTicket}
+        />
+      )}
+
+      {showEditModal && event && (
+        <EventFormModal
+          mode="edit"
+          event={event}
+          onClose={() => setShowEditModal(false)}
+          onSaved={fetchEvent}
+        />
+      )}
     </div>
   )
 }

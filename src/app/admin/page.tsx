@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { branding } from '../../lib/branding'
 import { useRouter } from 'next/navigation'
+import { brand } from '../../lib/brand'
 import Button from '../../components/Button/Button'
 import { EditorialInput } from '../../components/ui/editorial-form'
 import styles from '../../styles/shared.module.css'
@@ -26,7 +26,7 @@ export default function AdminLogin() {
     <div className={styles.loginPage}>
       <form onSubmit={handleLogin} className={styles.loginCard}>
         <div className={styles.loginHeader}>
-          <h1 className={styles.loginTitle}>{branding.appName} Admin</h1>
+          <h1 className={styles.loginTitle}>{brand.adminTitle}</h1>
           <p className={styles.loginSubtitle}>Please sign in to continue</p>
         </div>
 

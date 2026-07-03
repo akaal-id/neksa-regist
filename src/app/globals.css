@@ -6,8 +6,9 @@ html {
 }
 
 :root {
-  --background: #F4F7F6;
+  --background: #FFFFFF;
   --foreground: #1C2B2B;
+  --surface-muted: #FAFAFA;
   --hei26-white: #F9F9F9;
   --hei26-dongkerblue: #0F5C5C;
   --hei26-skyblue: #157A7A;
@@ -27,6 +28,7 @@ html {
   --hei26-gray: rgba(0, 73, 102, 0.65);
   --container-max: 1440px;
   --container-pad: clamp(1rem, 4vw, 2.5rem);
+  --aspect-instagram: 4 / 5;
 }
 
 @theme inline {

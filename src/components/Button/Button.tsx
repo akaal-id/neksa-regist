@@ -17,6 +17,8 @@ interface ButtonProps {
   target?: '_blank' | '_self' | '_parent' | '_top';
   rel?: string;
   disabled?: boolean;
+  form?: string;
+  hideIcon?: boolean;
 }
 
 export default function Button({
@@ -33,13 +35,15 @@ export default function Button({
   target,
   rel,
   disabled,
+  form,
+  hideIcon = false,
 }: ButtonProps) {
   const variantClass = styles[variant];
   const buttonClass = `${styles.button} ${variantClass} ${className || ''}`.trim();
   const textClass = `${styles.text} ${textClassName || ''}`.trim();
   const iconContainerClass = `${styles.iconContainer} ${iconClassName || ''}`.trim();
 
-  const showIcon = variant !== 'tertiary' && (icon !== undefined || variant === 'primary' || variant === 'secondary' || variant === 'yellow' || variant === 'outline');
+  const showIcon = !hideIcon && variant !== 'tertiary' && (icon !== undefined || variant === 'primary' || variant === 'secondary' || variant === 'yellow' || variant === 'outline');
   const IconComponent = icon !== undefined ? icon : (variant !== 'tertiary' ? ArrowUpRight : undefined);
 
   const buttonContent = (
@@ -78,6 +82,7 @@ export default function Button({
       onClick={onClick}
       className={buttonClass}
       type={type}
+      form={form}
       aria-label={ariaLabel || (typeof children === 'string' ? children : undefined)}
       disabled={disabled}
     >
