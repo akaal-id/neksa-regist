@@ -7,8 +7,6 @@ export default function EventCardSkeleton() {
       <div className={styles.skeletonBody}>
         <div className={`${styles.skeletonBlock} ${styles.skeletonBadge}`} />
         <div className={`${styles.skeletonBlock} ${styles.skeletonTitle}`} />
-        <div className={`${styles.skeletonBlock} ${styles.skeletonLine}`} />
-        <div className={`${styles.skeletonBlock} ${styles.skeletonLineShort}`} />
         <div className={`${styles.skeletonBlock} ${styles.skeletonMeta}`} />
       </div>
     </div>

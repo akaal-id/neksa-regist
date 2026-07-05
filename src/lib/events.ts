@@ -1,3 +1,7 @@
+import { stripHtml } from './richText'
+
+export type EventStatus = 'draft' | 'upcoming' | 'past'
+
 export type EventRecord = {
   id: number
   name: string
@@ -9,7 +13,34 @@ export type EventRecord = {
   slug: string | null
   image_url: string | null
   capacity: number | null
+  status: EventStatus
   created_at: string
+}
+
+function isPastEventDate(date: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const eventDate = new Date(`${date}T00:00:00`)
+  return eventDate < today
+}
+
+export function hasPendingSpeakers(description?: string | null): boolean {
+  const text = stripHtml(description).toLowerCase()
+  if (!text) return true
+  return (
+    text.includes('pending final confirmation') ||
+    text.includes('tbc (to be confirmed)')
+  )
+}
+
+export function computeEventStatus(
+  description: string | null | undefined,
+  date: string,
+  options?: { forceDraft?: boolean }
+): EventStatus {
+  if (options?.forceDraft) return 'draft'
+  if (hasPendingSpeakers(description)) return 'draft'
+  return isPastEventDate(date) ? 'past' : 'upcoming'
 }
 
 export type EventFormData = {

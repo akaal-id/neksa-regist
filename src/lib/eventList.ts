@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient'
-import { EventRecord } from './events'
+import { EventRecord, EventStatus } from './events'
 import { stripHtml } from './richText'
 
 export const EVENTS_PER_PAGE = 10
@@ -15,6 +15,15 @@ export function isPastEvent(date: string) {
   today.setHours(0, 0, 0, 0)
   const eventDate = new Date(`${date}T00:00:00`)
   return eventDate < today
+}
+
+export function getEventStatus(event: EventRecord): EventStatus {
+  if (event.status === 'draft') return 'draft'
+  return isPastEvent(event.date) ? 'past' : 'upcoming'
+}
+
+export function isDraftEvent(event: EventRecord) {
+  return event.status === 'draft'
 }
 
 export function formatFilterDate(date: string) {
@@ -67,11 +76,23 @@ export function paginate<T>(items: T[], page: number, perPage = EVENTS_PER_PAGE)
   }
 }
 
-export async function fetchEventsWithCounts(order: 'asc' | 'desc' = 'asc'): Promise<EventWithCount[]> {
-  const { data } = await supabase
+export async function fetchEventsWithCounts(
+  order: 'asc' | 'desc' = 'asc',
+  options?: { includeDraft?: boolean }
+): Promise<EventWithCount[]> {
+  const ascending = order === 'asc'
+
+  let query = supabase
     .from('events')
     .select('*, registrations(count)')
-    .order('date', { ascending: order === 'asc' })
+    .order('date', { ascending })
+    .order('start_time', { ascending, nullsFirst: false })
+
+  if (!options?.includeDraft) {
+    query = query.neq('status', 'draft')
+  }
+
+  const { data } = await query
 
   if (!data) return []
 

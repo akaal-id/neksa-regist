@@ -4,7 +4,7 @@ import { formatFilterDate } from '../../lib/eventList'
 import FilterSearchInput from '../FilterSearchInput/FilterSearchInput'
 import styles from '../../styles/shared.module.css'
 
-export type AdminStatusFilter = 'all' | 'upcoming' | 'past'
+export type AdminStatusFilter = 'all' | 'draft' | 'upcoming' | 'past'
 
 type AdminEventFilterProps = {
   dates: string[]
@@ -18,6 +18,7 @@ type AdminEventFilterProps = {
 
 const STATUS_OPTIONS: { value: AdminStatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
+  { value: 'draft', label: 'Draft' },
   { value: 'upcoming', label: 'Upcoming' },
   { value: 'past', label: 'Past' },
 ]

@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { Calendar, MapPin, ArrowRight, ChevronRight, Link as LinkIcon, Users } from 'lucide-react'
 import { EventRecord, formatEventDateTime } from '../../lib/events'
-import { EventWithCount, getSpotsLeft, isEventFull, isPastEvent } from '../../lib/eventList'
-import { richTextExcerpt } from '../../lib/richText'
+import { EventWithCount, getEventStatus, getSpotsLeft, isEventFull } from '../../lib/eventList'
 import styles from '../../styles/shared.module.css'
 
 type EventCardProps = {
@@ -15,7 +14,7 @@ type EventCardProps = {
 }
 
 export default function EventCard({ event, variant = 'user', href, onClick }: EventCardProps) {
-  const upcoming = !isPastEvent(event.date)
+  const status = getEventStatus(event)
   const registrationCount = 'registration_count' in event ? event.registration_count : 0
   const full = isEventFull(event, registrationCount)
   const spotsLeft = getSpotsLeft(event, registrationCount)
@@ -23,14 +22,17 @@ export default function EventCard({ event, variant = 'user', href, onClick }: Ev
 
   const statusBadge = () => {
     if (variant === 'admin') {
+      if (status === 'draft') {
+        return <span className={`${styles.badge} ${styles.badgeDraft}`}>Draft</span>
+      }
       return (
-        <span className={`${styles.badge} ${upcoming ? styles.badgeGold : styles.badgeMuted}`}>
-          {upcoming ? 'Upcoming' : 'Past'}
+        <span className={`${styles.badge} ${status === 'upcoming' ? styles.badgeGold : styles.badgeMuted}`}>
+          {status === 'upcoming' ? 'Upcoming' : 'Past'}
         </span>
       )
     }
 
-    if (!upcoming) {
+    if (status === 'past') {
       return <span className={`${styles.badge} ${styles.badgeMuted}`}>Past Event</span>
     }
 
@@ -45,24 +47,21 @@ export default function EventCard({ event, variant = 'user', href, onClick }: Ev
     return <span className={`${styles.badge} ${styles.badgeGold}`}>Upcoming</span>
   }
 
+  const hasImage = Boolean(event.image_url)
+
   const content = (
     <>
-      <div className={styles.cardMedia}>
-        {event.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={event.image_url} alt="" className={styles.cardImage} loading="lazy" />
-        ) : (
-          <div className={styles.cardImagePlaceholder} aria-hidden />
-        )}
-      </div>
+      {hasImage && (
+        <div className={styles.cardMedia}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.image_url!} alt="" className={styles.cardImage} loading="lazy" />
+        </div>
+      )}
 
       <div className={styles.cardBody}>
         <div className={styles.cardBadges}>{statusBadge()}</div>
 
         <h2 className={styles.cardTitle}>{event.name}</h2>
-        <p className={styles.cardDescription}>
-          {richTextExcerpt(event.description) || 'Join us for an unforgettable experience.'}
-        </p>
 
         <div className={styles.cardMeta}>
           <div className={styles.metaRow}>
@@ -94,7 +93,7 @@ export default function EventCard({ event, variant = 'user', href, onClick }: Ev
 
         {variant === 'user' && (
           <span className={styles.cardLink}>
-            {full && upcoming ? 'View Details' : 'View Event'}
+            {full && status === 'upcoming' ? 'View Details' : 'View Event'}
             <ArrowRight size={14} className={styles.cardLinkIcon} aria-hidden />
           </span>
         )}
@@ -104,9 +103,11 @@ export default function EventCard({ event, variant = 'user', href, onClick }: Ev
     </>
   )
 
+  const cardClassName = hasImage ? styles.eventCard : `${styles.eventCard} ${styles.eventCardNoMedia}`
+
   if (href) {
     return (
-      <Link href={href} className={styles.eventCard} aria-label={`View ${event.name}`}>
+      <Link href={href} className={cardClassName} aria-label={`View ${event.name}`}>
         {content}
       </Link>
     )
@@ -114,7 +115,7 @@ export default function EventCard({ event, variant = 'user', href, onClick }: Ev
 
   return (
     <div
-      className={styles.eventCard}
+      className={cardClassName}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}

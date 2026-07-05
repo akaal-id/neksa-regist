@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import AppFooter from "../components/AppFooter/AppFooter";
+import UserNavbar from "../components/UserNavbar/UserNavbar";
 import { brand } from "../lib/brand";
 import "./globals.css";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
         className={`${inter.variable} ${plusJakartaSans.variable} antialiased`}
       >
         <div id="modal-root" />
+        <UserNavbar />
         {children}
         <AppFooter />
       </body>

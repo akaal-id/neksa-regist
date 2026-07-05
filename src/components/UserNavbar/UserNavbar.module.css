@@ -1,0 +1,112 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: clamp(0.85rem, 2vw, 1rem) var(--container-pad);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 1px 0 rgba(0, 73, 102, 0.04);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.5rem 0.85rem 0.5rem 0.5rem;
+  border: 1px solid rgba(0, 73, 102, 0.08);
+  border-radius: 999px;
+  background: #ffffff;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.backLink:hover {
+  border-color: rgba(21, 122, 122, 0.2);
+  box-shadow: 0 2px 10px rgba(15, 92, 92, 0.06);
+}
+
+.backLink:focus-visible {
+  outline: 2px solid var(--hei26-skyblue);
+  outline-offset: 2px;
+}
+
+.backIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: var(--hei26-linearblue);
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.backLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hei26-dongkerblue);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.logoMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  background: var(--hei26-linearblue);
+  flex-shrink: 0;
+}
+
+.logoImage {
+  width: auto;
+  height: 22px;
+}
+
+@media (max-width: 900px) {
+  .backLink {
+    gap: 0.5rem;
+    padding: 0.45rem 0.7rem 0.45rem 0.45rem;
+  }
+
+  .logoMark {
+    padding: 0.4rem 0.55rem;
+  }
+
+  .logoImage {
+    height: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .navbar {
+    padding: 0.75rem var(--container-pad);
+  }
+
+  .backLabel {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .backLabel {
+    white-space: normal;
+    max-width: 9rem;
+    line-height: 1.25;
+  }
+}

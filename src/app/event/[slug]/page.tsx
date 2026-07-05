@@ -91,7 +91,11 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
         }
 
         if (eventData) {
-            setEvent(eventData)
+          if (eventData.status === 'draft') {
+            setError('Event not found.')
+            return
+          }
+          setEvent(eventData)
             const count = await getRegistrationCount(eventData.id)
             setRegistrationCount(count)
         } else {

@@ -13,8 +13,8 @@ import {
   EVENTS_PER_PAGE,
   EventWithCount,
   fetchEventsWithCounts,
+  getEventStatus,
   getUniqueDates,
-  isPastEvent,
   paginate,
   searchEvents,
 } from '../../lib/eventList'
@@ -41,17 +41,20 @@ export default function AdminDashboard() {
 
   const fetchEvents = async () => {
     setLoading(true)
-    const data = await fetchEventsWithCounts('desc')
+    const data = await fetchEventsWithCounts('desc', { includeDraft: true })
     setEvents(data)
     setLoading(false)
   }
 
   const statusFilteredEvents = useMemo(() => {
+    if (statusFilter === 'draft') {
+      return events.filter((event) => getEventStatus(event) === 'draft')
+    }
     if (statusFilter === 'upcoming') {
-      return events.filter((event) => !isPastEvent(event.date))
+      return events.filter((event) => getEventStatus(event) === 'upcoming')
     }
     if (statusFilter === 'past') {
-      return events.filter((event) => isPastEvent(event.date))
+      return events.filter((event) => getEventStatus(event) === 'past')
     }
     return events
   }, [events, statusFilter])
@@ -107,6 +110,7 @@ export default function AdminDashboard() {
     if (dateFilter !== 'all') {
       return 'No events match this date. Try another filter.'
     }
+    if (statusFilter === 'draft') return 'No draft events found.'
     if (statusFilter === 'upcoming') return 'No upcoming events found.'
     if (statusFilter === 'past') return 'No past events found.'
     return 'No events match the current filters.'

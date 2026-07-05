@@ -12,6 +12,7 @@ import {
   parseCapacity,
   parseOptionalTime,
   validateTimeRange,
+  computeEventStatus,
 } from '../../lib/events'
 import { uploadEventImage, validateEventImage } from '../../lib/eventImage'
 import { hasRichTextContent } from '../../lib/richText'
@@ -78,15 +79,22 @@ export default function EventFormModal({ mode, event, onClose, onSaved }: EventF
       const endTime = parseOptionalTime(form.end_time)
       validateTimeRange(startTime, endTime)
 
+      const description = hasRichTextContent(form.description) ? form.description : null
+      const status =
+        mode === 'create'
+          ? 'draft'
+          : computeEventStatus(description, form.date)
+
       const payload = {
         name: form.name,
-        description: hasRichTextContent(form.description) ? form.description : null,
+        description,
         date: form.date,
         start_time: startTime,
         end_time: endTime,
         address: form.address || null,
         slug: finalSlug,
         capacity,
+        status,
       }
 
       let eventId = event?.id
