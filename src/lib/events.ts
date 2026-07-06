@@ -43,6 +43,10 @@ export function computeEventStatus(
   return isPastEventDate(date) ? 'past' : 'upcoming'
 }
 
+export function resolvePublishedStatus(date: string): 'upcoming' | 'past' {
+  return isPastEventDate(date) ? 'past' : 'upcoming'
+}
+
 export type EventFormData = {
   name: string
   description: string

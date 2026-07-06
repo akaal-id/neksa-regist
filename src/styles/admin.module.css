@@ -84,7 +84,15 @@
   gap: 1rem;
   flex-wrap: wrap;
   width: 100%;
-  margin: 0 0 1.25rem;
+  max-width: var(--container-max);
+  margin: 0 auto;
+}
+
+.detailTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
 }
 
 .detailBody {
@@ -158,6 +166,49 @@
 }
 
 .deleteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.activateBtn,
+.draftBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1.25rem;
+  height: 48px;
+  border-radius: 999px;
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
+  font-size: clamp(12px, 1vw, 14px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.activateBtn {
+  border: 1.5px solid rgba(230, 184, 0, 0.45);
+  background: var(--hei26-gold-soft);
+  color: var(--hei26-deepgreen);
+}
+
+.activateBtn:hover:not(:disabled) {
+  background: #f3cf4a;
+  border-color: rgba(230, 184, 0, 0.65);
+}
+
+.draftBtn {
+  border: 1.5px solid rgba(0, 73, 102, 0.18);
+  background: rgba(0, 73, 102, 0.06);
+  color: var(--hei26-gray);
+}
+
+.draftBtn:hover:not(:disabled) {
+  background: rgba(0, 73, 102, 0.1);
+  border-color: rgba(0, 73, 102, 0.28);
+}
+
+.activateBtn:disabled,
+.draftBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -568,12 +619,14 @@
   .titleActions {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 0.65rem;
   }
 
   .editBtn,
-  .deleteBtn {
+  .deleteBtn,
+  .activateBtn,
+  .draftBtn {
     width: 100%;
     justify-content: center;
     padding: 0 0.85rem;

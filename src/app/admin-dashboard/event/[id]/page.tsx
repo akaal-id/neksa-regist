@@ -2,11 +2,12 @@
 import { useEffect, useState, use, useMemo } from 'react'
 import { supabase } from '../../../../lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, QrCode, List, UserCheck, Upload, Download, Eye, Search, ArrowUpDown, User, Pencil, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, QrCode, List, UserCheck, Upload, Download, Eye, Search, ArrowUpDown, User, Pencil, Trash2, Globe, EyeOff } from 'lucide-react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import Papa from 'papaparse'
 import { createTicketPdf } from '../../../../lib/ticketPdf'
-import { formatEventDateTime, EventRecord } from '../../../../lib/events'
+import { formatEventDateTime, EventRecord, resolvePublishedStatus } from '../../../../lib/events'
+import { getEventStatus } from '../../../../lib/eventList'
 import { deleteEvent } from '../../../../lib/eventImage'
 import Button from '../../../../components/Button/Button'
 import EventFormModal from '../../../../components/EventFormModal/EventFormModal'
@@ -33,6 +34,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [registrations, setRegistrations] = useState<RegistrationRecord[]>([])
   const [showEditModal, setShowEditModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState('')
   const [sortConfig, setSortConfig] = useState<{ key: keyof RegistrationRecord; direction: 'asc' | 'desc' } | null>(null)
@@ -320,7 +322,33 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  const handleToggleStatus = async () => {
+    if (!event) return
+
+    const isDraft = event.status === 'draft'
+    const confirmed = window.confirm(
+      isDraft
+        ? `Activate "${event.name}"? It will be visible on the public site.`
+        : `Move "${event.name}" to draft? It will be hidden from the public site.`
+    )
+    if (!confirmed) return
+
+    setIsTogglingStatus(true)
+    const newStatus = isDraft ? resolvePublishedStatus(event.date) : 'draft'
+    const { error } = await supabase.from('events').update({ status: newStatus }).eq('id', event.id)
+
+    if (error) {
+      alert('Failed to update event status: ' + error.message)
+    } else {
+      setEvent({ ...event, status: newStatus })
+    }
+    setIsTogglingStatus(false)
+  }
+
   if (!event) return <div className={styles.loading}>Loading...</div>
+
+  const isDraft = event.status === 'draft'
+  const eventStatus = getEventStatus(event)
 
   return (
     <div className={styles.page}>
@@ -344,13 +372,23 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </button>
           </div>
         </div>
-      </div>
 
-      <div className={`${admin.detailBody} ${activeTab === 'scan' ? admin.detailBodyScan : ''}`}>
-        {activeTab === 'rsvp' && (
         <div className={admin.titleRow}>
           <div>
-            <h1 className={admin.detailTitle}>{event.name}</h1>
+            <div className={admin.detailTitleRow}>
+              <h1 className={admin.detailTitle}>{event.name}</h1>
+              <span
+                className={`${styles.badge} ${
+                  eventStatus === 'draft'
+                    ? styles.badgeDraft
+                    : eventStatus === 'upcoming'
+                      ? styles.badgeGold
+                      : styles.badgeMuted
+                }`}
+              >
+                {eventStatus === 'draft' ? 'Draft' : eventStatus === 'upcoming' ? 'Upcoming' : 'Past'}
+              </span>
+            </div>
             {event.capacity != null && (
               <p className={admin.capacitySummary}>
                 {registrations.length} / {event.capacity} registered
@@ -368,6 +406,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </button>
             <button
               type="button"
+              className={isDraft ? admin.activateBtn : admin.draftBtn}
+              onClick={handleToggleStatus}
+              disabled={isTogglingStatus}
+            >
+              {isDraft ? <Globe size={16} /> : <EyeOff size={16} />}
+              {isTogglingStatus
+                ? 'Updating...'
+                : isDraft
+                  ? 'Activate Event'
+                  : 'Set as Draft'}
+            </button>
+            <button
+              type="button"
               className={admin.deleteBtn}
               onClick={handleDeleteEvent}
               disabled={isDeleting}
@@ -377,8 +428,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </button>
           </div>
         </div>
-        )}
+      </div>
 
+      <div className={`${admin.detailBody} ${activeTab === 'scan' ? admin.detailBodyScan : ''}`}>
         {activeTab === 'rsvp' && (
           <div className={admin.panel}>
             <div className={admin.toolbar}>

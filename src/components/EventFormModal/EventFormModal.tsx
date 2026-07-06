@@ -13,6 +13,8 @@ import {
   parseOptionalTime,
   validateTimeRange,
   computeEventStatus,
+  resolvePublishedStatus,
+  hasPendingSpeakers,
 } from '../../lib/events'
 import { uploadEventImage, validateEventImage } from '../../lib/eventImage'
 import { hasRichTextContent } from '../../lib/richText'
@@ -80,10 +82,16 @@ export default function EventFormModal({ mode, event, onClose, onSaved }: EventF
       validateTimeRange(startTime, endTime)
 
       const description = hasRichTextContent(form.description) ? form.description : null
-      const status =
-        mode === 'create'
-          ? 'draft'
-          : computeEventStatus(description, form.date)
+      let status: 'draft' | 'upcoming' | 'past' = 'draft'
+      if (mode === 'create') {
+        status = 'draft'
+      } else if (event?.status === 'draft') {
+        status = computeEventStatus(description, form.date)
+      } else if (hasPendingSpeakers(description)) {
+        status = event!.status
+      } else {
+        status = resolvePublishedStatus(form.date)
+      }
 
       const payload = {
         name: form.name,
